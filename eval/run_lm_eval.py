@@ -3,6 +3,7 @@ from __future__ import annotations
 import argparse
 import importlib.metadata
 import shutil
+import sys
 import time
 from pathlib import Path
 from typing import Any
@@ -57,7 +58,7 @@ def build_command(preset: dict[str, Any], task_alias: str, task_dir: Path) -> li
     model_args = ",".join(model_args_parts)
     gen_kwargs = ",".join(f"{key}={value}" for key, value in task_spec["gen_kwargs"].items())
     command = [
-        "python",
+        sys.executable,
         "-m",
         "lm_eval",
         "--model",
@@ -85,8 +86,12 @@ def build_command(preset: dict[str, Any], task_alias: str, task_dir: Path) -> li
 
 
 def standardize_task_artifacts(task_dir: Path) -> None:
-    json_candidates = [path for path in task_dir.glob("*.json") if path.name != "run_config.json"]
-    jsonl_candidates = list(task_dir.glob("*.jsonl"))
+    json_candidates = [
+        path
+        for path in task_dir.rglob("*.json")
+        if path.name != "run_config.json" and path.name != "run_metadata.json"
+    ]
+    jsonl_candidates = list(task_dir.rglob("*.jsonl"))
     if json_candidates:
         latest_json = max(json_candidates, key=lambda path: path.stat().st_mtime)
         shutil.copyfile(latest_json, task_dir / "results.json")

@@ -1,8 +1,10 @@
 from __future__ import annotations
 
 import argparse
+import importlib.util
 import json
 import shutil
+import sys
 from pathlib import Path
 from typing import Any
 
@@ -166,7 +168,7 @@ def build_llamafactory_config(project_root: Path, preset_name: str, preset: dict
 
 
 def run_command(config_path: Path, *, project_root: Path, logger: Any) -> Any:
-    command = ["llamafactory-cli", "train", str(config_path)]
+    command = [sys.executable, "-m", "llamafactory.cli", "train", str(config_path)]
     return run_streaming_command(command, cwd=project_root, logger=logger)
 
 
@@ -220,8 +222,8 @@ def collect_sft_artifacts(stage_dir: Path) -> dict[str, Any]:
 def run_sft_preset(preset_name: str) -> dict[str, Any]:
     if preset_name not in PRESETS:
         raise KeyError(f"Unknown preset: {preset_name}")
-    if shutil.which("llamafactory-cli") is None:
-        raise RuntimeError("llamafactory-cli is required in the target training environment.")
+    if importlib.util.find_spec("llamafactory") is None:
+        raise RuntimeError("llamafactory is required in the target training environment.")
 
     project_root = resolve_project_root()
     logger = configure_logger("training.run_sft")
@@ -240,7 +242,7 @@ def run_sft_preset(preset_name: str) -> dict[str, Any]:
         temp_output_dir / "run_metadata.json",
         build_run_metadata(preset=preset_name, dataset_info_path=preset["dataset_info_path"], config=config),
     )
-    write_text(temp_output_dir / "run_command.txt", f"llamafactory-cli train {config_path}\n")
+    write_text(temp_output_dir / "run_command.txt", f"{sys.executable} -m llamafactory.cli train {config_path}\n")
 
     try:
         result = run_command(config_path, project_root=project_root, logger=logger)

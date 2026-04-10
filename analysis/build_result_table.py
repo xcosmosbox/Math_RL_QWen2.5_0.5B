@@ -6,7 +6,13 @@ from pathlib import Path
 from utils.io_utils import ensure_dir, resolve_project_root, write_csv_rows
 
 
-PREFERRED_METRICS = ["exact_match", "exact_match,none", "acc_norm", "acc"]
+PREFERRED_METRICS = [
+    "exact_match,strict-match",
+    "exact_match,flexible-extract",
+    "exact_match,none",
+    "acc_norm,none",
+    "acc,none",
+]
 
 
 def read_csv_rows(path: Path) -> list[dict[str, str]]:

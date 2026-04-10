@@ -18,14 +18,14 @@ TASK_SPECS = {
         "task_id": "hendrycks_math500",
         "benchmark": "MATH-500",
         "apply_chat_template": True,
-        "batch_size": 1,
+        "batch_size": 8,
         "gen_kwargs": COMMON_GEN_KWARGS,
     },
     "gsm8k": {
         "task_id": "gsm8k_cot",
         "benchmark": "GSM8K",
         "apply_chat_template": True,
-        "batch_size": 1,
+        "batch_size": 8,
         "gen_kwargs": COMMON_GEN_KWARGS,
     },
     "hellaswag": {

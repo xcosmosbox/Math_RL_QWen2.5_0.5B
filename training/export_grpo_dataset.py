@@ -25,6 +25,13 @@ PRESETS = {
             "train_output": "data/processed/grpo_relaxed_ablation_train.jsonl",
             "valid_output": "data/processed/grpo_relaxed_ablation_valid.jsonl",
         },
+        {
+            "dataset_name": "bigmath_verified_grpo",
+            "train_path": "data/processed/bigmath_verified_clean_train.jsonl",
+            "valid_path": "data/processed/bigmath_verified_clean_valid.jsonl",
+            "train_output": "data/processed/grpo_bigmath_verified_train.jsonl",
+            "valid_output": "data/processed/grpo_bigmath_verified_valid.jsonl",
+        },
     ],
     "strict_main_grpo": [
         {
@@ -42,6 +49,15 @@ PRESETS = {
             "valid_path": "data/processed/filtered_relaxed_valid.jsonl",
             "train_output": "data/processed/grpo_relaxed_ablation_train.jsonl",
             "valid_output": "data/processed/grpo_relaxed_ablation_valid.jsonl",
+        }
+    ],
+    "bigmath_verified_grpo": [
+        {
+            "dataset_name": "bigmath_verified_grpo",
+            "train_path": "data/processed/bigmath_verified_clean_train.jsonl",
+            "valid_path": "data/processed/bigmath_verified_clean_valid.jsonl",
+            "train_output": "data/processed/grpo_bigmath_verified_train.jsonl",
+            "valid_output": "data/processed/grpo_bigmath_verified_valid.jsonl",
         }
     ],
 }

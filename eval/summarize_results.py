@@ -33,9 +33,13 @@ def extract_rows(
     result_block = result_payload.get("results", {})
     for task_id, metrics in result_block.items():
         for metric_name, metric_value in metrics.items():
-            if metric_name.endswith("_stderr"):
+            if metric_name == "alias":
                 continue
-            stderr_key = f"{metric_name}_stderr"
+            metric_base, _, metric_suffix = metric_name.partition(",")
+            if metric_base.endswith("_stderr"):
+                continue
+            stderr_base = f"{metric_base}_stderr"
+            stderr_key = f"{stderr_base},{metric_suffix}" if metric_suffix else stderr_base
             rows.append(
                 {
                     "run_date": run_date,
@@ -56,19 +60,25 @@ def extract_rows(
 def summarize_eval_outputs(project_root: Path) -> list[dict[str, Any]]:
     outputs_root = Path(project_root, "eval", "outputs")
     rows: list[dict[str, Any]] = []
-    for result_path in sorted(outputs_root.glob("*/*/results.json")):
-        task_dir = result_path.parent
-        run_config_path = task_dir / "run_config.json"
-        runtime_path = task_dir / "runtime.txt"
-        if not run_config_path.exists():
-            continue
-        with result_path.open("r", encoding="utf-8") as handle:
-            result_payload = json.load(handle)
-        with run_config_path.open("r", encoding="utf-8") as handle:
-            run_config = json.load(handle)
-        runtime_minutes = runtime_path.read_text(encoding="utf-8") if runtime_path.exists() else ""
-        run_date = task_dir.parent.name.split("_")[0]
-        rows.extend(extract_rows(result_payload, run_config, runtime_minutes, run_date))
+    for stage_dir in sorted(path for path in outputs_root.glob("*") if path.is_dir() and not path.name.startswith(".")):
+        for task_dir in sorted(path for path in stage_dir.glob("*") if path.is_dir() and not path.name.startswith(".")):
+            result_path = task_dir / "results.json"
+            if not result_path.exists():
+                candidates = [path for path in task_dir.rglob("results*.json") if path.name != "run_config.json"]
+                if not candidates:
+                    continue
+                result_path = max(candidates, key=lambda path: path.stat().st_mtime)
+            run_config_path = task_dir / "run_config.json"
+            runtime_path = task_dir / "runtime.txt"
+            if not run_config_path.exists():
+                continue
+            with result_path.open("r", encoding="utf-8") as handle:
+                result_payload = json.load(handle)
+            with run_config_path.open("r", encoding="utf-8") as handle:
+                run_config = json.load(handle)
+            runtime_minutes = runtime_path.read_text(encoding="utf-8") if runtime_path.exists() else ""
+            run_date = task_dir.parent.name.split("_")[0]
+            rows.extend(extract_rows(result_payload, run_config, runtime_minutes, run_date))
     return rows
 
 
