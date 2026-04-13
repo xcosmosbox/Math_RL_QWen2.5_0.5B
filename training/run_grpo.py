@@ -27,6 +27,9 @@ PRESETS = {
         "per_device_train_batch_size": 8,
         "gradient_accumulation_steps": 1,
         "beta": 0.04,
+        "temperature": 0.7,
+        "top_p": 0.95,
+        "repetition_penalty": 1.05,
         "num_train_epochs": 1,
         "logging_steps": 1,
         "max_train_samples": 64,
@@ -46,6 +49,9 @@ PRESETS = {
         "per_device_train_batch_size": 4,
         "gradient_accumulation_steps": 8,
         "beta": 0.04,
+        "temperature": 0.7,
+        "top_p": 0.95,
+        "repetition_penalty": 1.05,
         "num_train_epochs": 1,
         "logging_steps": 5,
     },
@@ -63,6 +69,9 @@ PRESETS = {
         "per_device_train_batch_size": 4,
         "gradient_accumulation_steps": 8,
         "beta": 0.04,
+        "temperature": 0.7,
+        "top_p": 0.95,
+        "repetition_penalty": 1.05,
         "num_train_epochs": 1,
         "logging_steps": 5,
     },
@@ -80,6 +89,9 @@ PRESETS = {
         "per_device_train_batch_size": 8,
         "gradient_accumulation_steps": 1,
         "beta": 0.04,
+        "temperature": 0.7,
+        "top_p": 0.95,
+        "repetition_penalty": 1.05,
         "num_train_epochs": 1,
         "logging_steps": 1,
         "max_train_samples": 64,
@@ -91,6 +103,23 @@ PRESETS = {
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Run GRPO training")
     parser.add_argument("--preset", default=DEFAULT_PRESET)
+    parser.add_argument("--base-sft-model-path", dest="base_sft_model_path")
+    parser.add_argument("--output-dir", dest="output_dir")
+    parser.add_argument("--per-device-train-batch-size", type=int, dest="per_device_train_batch_size")
+    parser.add_argument("--gradient-accumulation-steps", type=int, dest="gradient_accumulation_steps")
+    parser.add_argument("--generation-batch-size", type=int, dest="generation_batch_size")
+    parser.add_argument("--num-generations", type=int, dest="num_generations")
+    parser.add_argument("--max-train-samples", type=int, dest="max_train_samples")
+    parser.add_argument("--max-valid-samples", type=int, dest="max_valid_samples")
+    parser.add_argument("--learning-rate", type=float, dest="learning_rate")
+    parser.add_argument("--num-train-epochs", type=float, dest="num_train_epochs")
+    parser.add_argument("--logging-steps", type=int, dest="logging_steps")
+    parser.add_argument("--max-prompt-length", type=int, dest="max_prompt_length")
+    parser.add_argument("--max-completion-length", type=int, dest="max_completion_length")
+    parser.add_argument("--beta", type=float, dest="beta")
+    parser.add_argument("--temperature", type=float, dest="temperature")
+    parser.add_argument("--top-p", type=float, dest="top_p")
+    parser.add_argument("--repetition-penalty", type=float, dest="repetition_penalty")
     return parser.parse_args()
 
 
@@ -147,12 +176,42 @@ def build_kl_summary(log_history: list[dict[str, Any]]) -> dict[str, Any]:
     }
 
 
-def run_grpo_preset(preset_name: str) -> dict[str, Any]:
+def collect_overrides(args: argparse.Namespace) -> dict[str, Any]:
+    override_fields = [
+        "base_sft_model_path",
+        "output_dir",
+        "per_device_train_batch_size",
+        "gradient_accumulation_steps",
+        "generation_batch_size",
+        "num_generations",
+        "max_train_samples",
+        "max_valid_samples",
+        "learning_rate",
+        "num_train_epochs",
+        "logging_steps",
+        "max_prompt_length",
+        "max_completion_length",
+        "beta",
+        "temperature",
+        "top_p",
+        "repetition_penalty",
+    ]
+    overrides: dict[str, Any] = {}
+    for field in override_fields:
+        value = getattr(args, field)
+        if value is not None:
+            overrides[field] = value
+    return overrides
+
+
+def run_grpo_preset(preset_name: str, overrides: dict[str, Any] | None = None) -> dict[str, Any]:
     if preset_name not in PRESETS:
         raise KeyError(f"Unknown preset: {preset_name}")
     project_root = resolve_project_root()
     logger = configure_logger("training.run_grpo")
-    preset = PRESETS[preset_name]
+    preset = dict(PRESETS[preset_name])
+    if overrides:
+        preset.update(overrides)
     final_output_dir = Path(project_root, preset["output_dir"])
     temp_output_dir = make_temp_dir(final_output_dir.parent, prefix=f".{final_output_dir.name}_tmp_")
     logs_dir = ensure_dir(temp_output_dir / "logs")
@@ -192,6 +251,9 @@ def run_grpo_preset(preset_name: str) -> dict[str, Any]:
             "num_train_epochs": preset["num_train_epochs"],
             "max_train_samples": preset.get("max_train_samples"),
             "max_valid_samples": preset.get("max_valid_samples"),
+            "temperature": preset["temperature"],
+            "top_p": preset["top_p"],
+            "repetition_penalty": preset["repetition_penalty"],
         }
         write_json(temp_output_dir / "rollout_config.json", rollout_config)
         write_json(temp_output_dir / "config.json", preset)
@@ -220,6 +282,9 @@ def run_grpo_preset(preset_name: str) -> dict[str, Any]:
             num_train_epochs=preset["num_train_epochs"],
             report_to=[],
             bf16=True,
+            temperature=preset["temperature"],
+            top_p=preset["top_p"],
+            repetition_penalty=preset["repetition_penalty"],
         )
         trainer = grpo_trainer_cls(
             model=model,
@@ -280,7 +345,7 @@ def run_grpo_preset(preset_name: str) -> dict[str, Any]:
 
 def main() -> None:
     args = parse_args()
-    run_grpo_preset(args.preset)
+    run_grpo_preset(args.preset, overrides=collect_overrides(args))
 
 
 if __name__ == "__main__":

@@ -6,8 +6,18 @@ from fractions import Fraction
 from rewards.answer_extraction import normalize_answer_text
 
 
+def canonicalize_verifier_text(text: str | None) -> str:
+    normalized = normalize_answer_text(text)
+    if len(normalized) == 1 and normalized.isalpha():
+        return normalized.upper()
+    lowered = normalized.lower()
+    if lowered in {"yes", "no", "true", "false"}:
+        return lowered
+    return normalized
+
+
 def exact_match(predicted: str | None, target: str | None) -> bool:
-    return normalize_answer_text(predicted) == normalize_answer_text(target)
+    return canonicalize_verifier_text(predicted) == canonicalize_verifier_text(target)
 
 
 def _parse_number(text: str) -> Decimal | None:

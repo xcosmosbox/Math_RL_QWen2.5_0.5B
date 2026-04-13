@@ -28,6 +28,7 @@ FILTER_VARIANTS = {
         "max_target_answer_chars": 96,
         "require_strict_format_for_chosen_solution": True,
         "allow_generic_answer_fallback": False,
+        "answer_format_profile": "deepmath",
     },
     "relaxed": {
         "max_prompt_chars": 3_500,
@@ -35,6 +36,7 @@ FILTER_VARIANTS = {
         "max_target_answer_chars": 160,
         "require_strict_format_for_chosen_solution": False,
         "allow_generic_answer_fallback": True,
+        "answer_format_profile": "deepmath",
     },
 }
 RAW_DATA_PATH = "data/raw/deepmath_103k_raw.jsonl"
@@ -124,8 +126,9 @@ def assess_candidate(
     target_final_answer: str,
     require_strict_format: bool,
     allow_generic_answer_fallback: bool,
+    answer_format_profile: str,
 ) -> CandidateAssessment | None:
-    extraction = extract_final_answer(text)
+    extraction = extract_final_answer(text, format_profile=answer_format_profile)
     if extraction.extracted_answer is None:
         return None
     if require_strict_format and not extraction.format_pass:
@@ -165,6 +168,7 @@ def choose_solution(
             target_final_answer=target_final_answer,
             require_strict_format=variant_config["require_strict_format_for_chosen_solution"],
             allow_generic_answer_fallback=variant_config["allow_generic_answer_fallback"],
+            answer_format_profile=variant_config["answer_format_profile"],
         )
         if result is not None:
             assessed.append(result)

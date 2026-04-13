@@ -13,5 +13,22 @@ Requirements:
 """
 
 
+RL_INSTRUCTION_TEMPLATE = """You are solving a math problem.
+
+Problem:
+{problem}
+
+Requirements:
+1. Show concise step-by-step reasoning.
+2. End with exactly one final line in the format: <answer>\\boxed{{your_final_answer}}</answer>
+3. Put only the final answer inside the <answer> tag.
+4. Do not omit the final answer line.
+"""
+
+
 def build_math_instruction_prompt(problem: str) -> str:
     return INSTRUCTION_TEMPLATE.format(problem=problem.strip())
+
+
+def build_math_rl_instruction_prompt(problem: str) -> str:
+    return RL_INSTRUCTION_TEMPLATE.format(problem=problem.strip())

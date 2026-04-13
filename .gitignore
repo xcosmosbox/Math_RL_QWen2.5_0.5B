@@ -7,3 +7,5 @@ outputs/
 eval/outputs/
 eval/summaries/
 analysis/results/
+logs/
+.ray_tmp/

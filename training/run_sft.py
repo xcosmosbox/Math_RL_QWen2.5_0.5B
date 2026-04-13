@@ -122,6 +122,14 @@ PRESETS = {
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Run LoRA SFT with LLaMA-Factory")
     parser.add_argument("--preset", default=DEFAULT_PRESET)
+    parser.add_argument("--base-model", dest="base_model")
+    parser.add_argument("--template", dest="template")
+    parser.add_argument("--per-device-train-batch-size", type=int, dest="per_device_train_batch_size")
+    parser.add_argument("--per-device-eval-batch-size", type=int, dest="per_device_eval_batch_size")
+    parser.add_argument("--gradient-accumulation-steps", type=int, dest="gradient_accumulation_steps")
+    parser.add_argument("--max-samples", type=int, dest="max_samples")
+    parser.add_argument("--num-train-epochs", type=float, dest="num_train_epochs")
+    parser.add_argument("--output-dir", dest="output_dir")
     return parser.parse_args()
 
 
@@ -165,6 +173,25 @@ def build_llamafactory_config(project_root: Path, preset_name: str, preset: dict
     if "max_samples" in preset:
         config["max_samples"] = preset["max_samples"]
     return config
+
+
+def collect_overrides(args: argparse.Namespace) -> dict[str, Any]:
+    override_fields = [
+        "base_model",
+        "template",
+        "per_device_train_batch_size",
+        "per_device_eval_batch_size",
+        "gradient_accumulation_steps",
+        "max_samples",
+        "num_train_epochs",
+        "output_dir",
+    ]
+    overrides: dict[str, Any] = {}
+    for field in override_fields:
+        value = getattr(args, field)
+        if value is not None:
+            overrides[field] = value
+    return overrides
 
 
 def run_command(config_path: Path, *, project_root: Path, logger: Any) -> Any:
@@ -219,7 +246,7 @@ def collect_sft_artifacts(stage_dir: Path) -> dict[str, Any]:
     }
 
 
-def run_sft_preset(preset_name: str) -> dict[str, Any]:
+def run_sft_preset(preset_name: str, overrides: dict[str, Any] | None = None) -> dict[str, Any]:
     if preset_name not in PRESETS:
         raise KeyError(f"Unknown preset: {preset_name}")
     if importlib.util.find_spec("llamafactory") is None:
@@ -227,7 +254,9 @@ def run_sft_preset(preset_name: str) -> dict[str, Any]:
 
     project_root = resolve_project_root()
     logger = configure_logger("training.run_sft")
-    preset = PRESETS[preset_name]
+    preset = dict(PRESETS[preset_name])
+    if overrides:
+        preset.update(overrides)
     final_output_dir = Path(project_root, preset["output_dir"])
     temp_output_dir = make_temp_dir(final_output_dir.parent, prefix=f".{final_output_dir.name}_tmp_")
     logs_dir = ensure_dir(temp_output_dir / "logs")
@@ -255,7 +284,10 @@ def run_sft_preset(preset_name: str) -> dict[str, Any]:
         from analysis.build_sft_loss_curve import build_loss_curve
         from analysis.build_sft_comparison import build_sft_comparison
 
-        build_loss_curve(temp_output_dir / "trainer_state.json", temp_output_dir / "loss_curve.png")
+        try:
+            build_loss_curve(temp_output_dir / "trainer_state.json", temp_output_dir / "loss_curve.png")
+        except ValueError as exc:
+            logger.warning("Skipping loss curve generation: %s", exc)
         build_sft_comparison(project_root, temp_output_dir, preset_name)
         write_json(
             temp_output_dir / "artifact_manifest.json",
@@ -294,7 +326,7 @@ def run_sft_preset(preset_name: str) -> dict[str, Any]:
 
 def main() -> None:
     args = parse_args()
-    run_sft_preset(args.preset)
+    run_sft_preset(args.preset, overrides=collect_overrides(args))
 
 
 if __name__ == "__main__":

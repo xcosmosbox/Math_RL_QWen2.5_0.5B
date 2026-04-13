@@ -3,7 +3,7 @@ from __future__ import annotations
 import argparse
 from pathlib import Path
 
-from training.prompt_templates import build_math_instruction_prompt
+from training.prompt_templates import build_math_rl_instruction_prompt
 from utils.io_utils import read_jsonl, resolve_project_root, write_json, write_jsonl
 from utils.logging_utils import build_run_metadata, configure_logger
 
@@ -13,15 +13,15 @@ PRESETS = {
     "all": [
         {
             "dataset_name": "strict_main_grpo",
-            "train_path": "data/processed/filtered_strict_train.jsonl",
-            "valid_path": "data/processed/filtered_strict_valid.jsonl",
+            "train_path": "data/processed/rl_strict_train.jsonl",
+            "valid_path": "data/processed/rl_strict_valid.jsonl",
             "train_output": "data/processed/grpo_strict_main_train.jsonl",
             "valid_output": "data/processed/grpo_strict_main_valid.jsonl",
         },
         {
             "dataset_name": "relaxed_ablation_grpo",
-            "train_path": "data/processed/filtered_relaxed_train.jsonl",
-            "valid_path": "data/processed/filtered_relaxed_valid.jsonl",
+            "train_path": "data/processed/rl_relaxed_train.jsonl",
+            "valid_path": "data/processed/rl_relaxed_valid.jsonl",
             "train_output": "data/processed/grpo_relaxed_ablation_train.jsonl",
             "valid_output": "data/processed/grpo_relaxed_ablation_valid.jsonl",
         },
@@ -36,8 +36,8 @@ PRESETS = {
     "strict_main_grpo": [
         {
             "dataset_name": "strict_main_grpo",
-            "train_path": "data/processed/filtered_strict_train.jsonl",
-            "valid_path": "data/processed/filtered_strict_valid.jsonl",
+            "train_path": "data/processed/rl_strict_train.jsonl",
+            "valid_path": "data/processed/rl_strict_valid.jsonl",
             "train_output": "data/processed/grpo_strict_main_train.jsonl",
             "valid_output": "data/processed/grpo_strict_main_valid.jsonl",
         }
@@ -45,8 +45,8 @@ PRESETS = {
     "relaxed_ablation_grpo": [
         {
             "dataset_name": "relaxed_ablation_grpo",
-            "train_path": "data/processed/filtered_relaxed_train.jsonl",
-            "valid_path": "data/processed/filtered_relaxed_valid.jsonl",
+            "train_path": "data/processed/rl_relaxed_train.jsonl",
+            "valid_path": "data/processed/rl_relaxed_valid.jsonl",
             "train_output": "data/processed/grpo_relaxed_ablation_train.jsonl",
             "valid_output": "data/processed/grpo_relaxed_ablation_valid.jsonl",
         }
@@ -72,7 +72,7 @@ def parse_args() -> argparse.Namespace:
 def build_grpo_record(record: dict[str, object]) -> dict[str, object]:
     return {
         "sample_id": record["sample_id"],
-        "prompt": build_math_instruction_prompt(str(record["prompt"])),
+        "prompt": build_math_rl_instruction_prompt(str(record["prompt"])),
         "raw_prompt": record["prompt"],
         "target_final_answer": record["target_final_answer"],
         "difficulty": record["difficulty"],
@@ -83,8 +83,8 @@ def build_grpo_record(record: dict[str, object]) -> dict[str, object]:
 
 
 def export_variant(project_root: Path, spec: dict[str, str]) -> dict[str, object]:
-    train_records = [row for row in read_jsonl(Path(project_root, spec["train_path"])) if row["is_verifiable"]]
-    valid_records = [row for row in read_jsonl(Path(project_root, spec["valid_path"])) if row["is_verifiable"]]
+    train_records = read_jsonl(Path(project_root, spec["train_path"]))
+    valid_records = read_jsonl(Path(project_root, spec["valid_path"]))
     train_payload = [build_grpo_record(row) for row in train_records]
     valid_payload = [build_grpo_record(row) for row in valid_records]
     write_jsonl(Path(project_root, spec["train_output"]), train_payload)

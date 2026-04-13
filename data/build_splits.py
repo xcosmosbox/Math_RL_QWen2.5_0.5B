@@ -17,6 +17,8 @@ PRESETS = {
     "relaxed": ["relaxed"],
 }
 SPLIT_RATIOS = {"train": 0.8, "valid": 0.1, "test": 0.1}
+STRATIFY_FIELDS = ("difficulty", "task_type")
+ALLOCATION_POLICY = "proportional_fill"
 VARIANT_INPUTS = {
     "strict": "data/processed/filtered_strict.jsonl",
     "relaxed": "data/processed/filtered_relaxed.jsonl",
@@ -55,15 +57,16 @@ def assign_groups_to_splits(groups: list[list[dict[str, Any]]]) -> dict[str, str
 
     sorted_groups = sorted(groups, key=lambda group: (-len(group), prompt_group_key(group[0]), group[0]["sample_id"]))
     for group in sorted_groups:
-        candidate_scores: list[tuple[float, str]] = []
+        candidate_scores: list[tuple[bool, float, float, bool, str]] = []
         for split in ("train", "valid", "test"):
-            projected = current_counts[split] + len(group)
             target = target_counts[split]
-            error = abs(projected - target)
-            remaining_capacity_bonus = max(target - current_counts[split], 0)
-            candidate_scores.append((error - (remaining_capacity_bonus * 0.001), split))
-        candidate_scores.sort(key=lambda item: (item[0], item[1] != "train", item[1]))
-        chosen_split = candidate_scores[0][1]
+            projected = current_counts[split] + len(group)
+            overflow = projected > target if target else projected > 0
+            projected_fill = projected / target if target else float("inf")
+            current_fill = current_counts[split] / target if target else float("inf")
+            candidate_scores.append((overflow, projected_fill, current_fill, split != "train", split))
+        candidate_scores.sort()
+        chosen_split = candidate_scores[0][-1]
         group_key = prompt_group_key(group[0])
         assignments[group_key] = chosen_split
         current_counts[chosen_split] += len(group)
@@ -71,9 +74,10 @@ def assign_groups_to_splits(groups: list[list[dict[str, Any]]]) -> dict[str, str
 
 
 def stratified_split(records: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    strata: dict[tuple[str, str], dict[str, list[dict[str, Any]]]] = defaultdict(lambda: defaultdict(list))
+    strata: dict[tuple[str, ...], dict[str, list[dict[str, Any]]]] = defaultdict(lambda: defaultdict(list))
     for record in records:
-        strata[(record["difficulty"] or "unknown", record["task_type"])][prompt_group_key(record)].append(record)
+        stratum_key = tuple(str(record.get(field) or "unknown") for field in STRATIFY_FIELDS)
+        strata[stratum_key][prompt_group_key(record)].append(record)
 
     assigned_records: list[dict[str, Any]] = []
     for _, group_map in sorted(strata.items()):
@@ -137,6 +141,8 @@ def run_variant(project_root: Path, variant: str) -> None:
         variant=variant,
         input_path=str(input_path),
         split_ratios=SPLIT_RATIOS,
+        stratify_fields=list(STRATIFY_FIELDS),
+        allocation_policy=ALLOCATION_POLICY,
         record_count=len(assigned_records),
         split_summary=summarize_split(assigned_records),
     )
