@@ -21,6 +21,9 @@ SWANLAB_MODE="${SWANLAB_MODE:-cloud}"
 SWANLAB_LOG_DIR="${SWANLAB_LOG_DIR:-$OUTPUT_DIR/swanlog}"
 ROLLOUT_ENGINE="${ROLLOUT_ENGINE:-vllm}"
 LOGGER_BACKENDS="${LOGGER_BACKENDS:-[\"console\",\"file\",\"swanlab\"]}"
+RESUME_MODE="${RESUME_MODE:-auto}"
+RESUME_FROM_PATH="${RESUME_FROM_PATH:-}"
+VERL_RUNTIME_PATCH="${VERL_RUNTIME_PATCH:-1}"
 
 TRAIN_BATCH_SIZE="${TRAIN_BATCH_SIZE:-64}"
 MAX_PROMPT_LENGTH="${MAX_PROMPT_LENGTH:-1024}"
@@ -49,6 +52,7 @@ export SWANLAB_MODE
 export SWANLAB_LOG_DIR
 export RAY_TMPDIR
 export RAY_ADDRESS="${RAY_ADDRESS:-local}"
+export VERL_RUNTIME_PATCH
 export TMPDIR
 export TEMP="$TMPDIR"
 export TMP="$TMPDIR"
@@ -78,6 +82,16 @@ ROLLOUT_ARGS=(
 if [[ "$ROLLOUT_ENGINE" == "vllm" ]]; then
   ROLLOUT_ARGS+=(
     actor_rollout_ref.rollout.layered_summon=True
+  )
+fi
+
+RESUME_ARGS=(
+  trainer.resume_mode="$RESUME_MODE"
+)
+
+if [[ -n "$RESUME_FROM_PATH" ]]; then
+  RESUME_ARGS+=(
+    trainer.resume_from_path="$RESUME_FROM_PATH"
   )
 fi
 
@@ -115,6 +129,7 @@ fi
   trainer.project_name="$PROJECT_NAME" \
   trainer.experiment_name="$EXPERIMENT_NAME" \
   trainer.default_local_dir="$OUTPUT_DIR" \
+  "${RESUME_ARGS[@]}" \
   trainer.n_gpus_per_node=1 \
   trainer.nnodes=1 \
   trainer.save_freq="$SAVE_FREQ" \
