@@ -22,8 +22,6 @@ def parse_args() -> argparse.Namespace:
 def validate_preset(preset_name: str, preset: dict[str, Any]) -> None:
     if preset_name not in PRESETS:
         raise KeyError(f"Unknown preset: {preset_name}")
-    if any("theorem" in task.lower() for task in preset["tasks"]):
-        raise ValueError("TheoremQA is forbidden in this project")
     missing = [task for task in preset["tasks"] if task not in TASK_SPECS]
     if missing:
         raise ValueError(f"Unknown task aliases: {missing}")
@@ -48,21 +46,25 @@ def print_available_tasks() -> None:
 
 def build_command(preset: dict[str, Any], task_alias: str, task_dir: Path) -> list[str]:
     task_spec = TASK_SPECS[task_alias]
-    model_args_parts = [
-        f"pretrained={preset['model_path']}",
-        "trust_remote_code=True",
-        "dtype=bfloat16",
-    ]
-    if preset.get("peft_path"):
-        model_args_parts.append(f"peft={preset['peft_path']}")
+    backend = preset.get("model_backend", "hf")
+    model_args_parts = [f"pretrained={preset['model_path']}", "trust_remote_code=True", "dtype=bfloat16"]
+    if backend == "hf":
+        if preset.get("peft_path"):
+            model_args_parts.append(f"peft={preset['peft_path']}")
+    elif backend == "vllm":
+        if preset.get("peft_path"):
+            model_args_parts.append(f"lora_local_path={preset['peft_path']}")
+        for key, value in preset.get("backend_model_args", {}).items():
+            model_args_parts.append(f"{key}={value}")
     model_args = ",".join(model_args_parts)
     gen_kwargs = ",".join(f"{key}={value}" for key, value in task_spec["gen_kwargs"].items())
     command = [
         sys.executable,
         "-m",
         "lm_eval",
+        "run",
         "--model",
-        "hf",
+        backend,
         "--model_args",
         model_args,
         "--tasks",
@@ -78,6 +80,9 @@ def build_command(preset: dict[str, Any], task_alias: str, task_dir: Path) -> li
     ]
     if task_spec.get("apply_chat_template"):
         command.append("--apply_chat_template")
+    include_path = Path(resolve_project_root(), "eval", "tasks")
+    if include_path.exists():
+        command.extend(["--include_path", str(include_path)])
     if preset.get("log_samples"):
         command.append("--log_samples")
     if preset.get("limit") is not None:

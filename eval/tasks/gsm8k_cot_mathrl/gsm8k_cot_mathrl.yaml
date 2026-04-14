@@ -1,0 +1,33 @@
+dataset_name: main
+dataset_path: openai/gsm8k
+task: gsm8k_cot_mathrl
+test_split: test
+doc_to_target: "{{answer}}"
+doc_to_text: |
+  You are solving a math problem.
+
+  Problem:
+  {{question}}
+
+  Requirements:
+  1. Show concise step-by-step reasoning.
+  2. End with exactly one final line in the format: <answer>\boxed{your_final_answer}</answer>
+  3. Put only the final answer inside the <answer> tag.
+  4. Do not omit the final answer line.
+process_results: !function utils.process_results
+generation_kwargs:
+  do_sample: false
+  until:
+    - "You are solving a math problem."
+    - </s>
+    - <|im_end|>
+  max_gen_toks: 1024
+metric_list:
+  - aggregation: mean
+    higher_is_better: true
+    metric: exact_match
+num_fewshot: 0
+output_type: generate_until
+repeats: 1
+metadata:
+  version: 1.0

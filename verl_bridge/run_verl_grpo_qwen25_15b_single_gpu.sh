@@ -95,6 +95,29 @@ if [[ -n "$RESUME_FROM_PATH" ]]; then
   )
 fi
 
+RUNTIME_ENV_ARGS=(
+  "+ray_kwargs.ray_init.runtime_env.env_vars.VERL_RUNTIME_PATCH='$VERL_RUNTIME_PATCH'"
+  +ray_kwargs.ray_init.runtime_env.env_vars.PYTHONPATH="$ROOT_DIR:$VERL_REPO"
+)
+
+if [[ -n "${SWANLAB_API_KEY:-}" ]]; then
+  RUNTIME_ENV_ARGS+=(
+    +ray_kwargs.ray_init.runtime_env.env_vars.SWANLAB_API_KEY="$SWANLAB_API_KEY"
+  )
+fi
+
+if [[ -n "$SWANLAB_MODE" ]]; then
+  RUNTIME_ENV_ARGS+=(
+    +ray_kwargs.ray_init.runtime_env.env_vars.SWANLAB_MODE="$SWANLAB_MODE"
+  )
+fi
+
+if [[ -n "$SWANLAB_LOG_DIR" ]]; then
+  RUNTIME_ENV_ARGS+=(
+    +ray_kwargs.ray_init.runtime_env.env_vars.SWANLAB_LOG_DIR="$SWANLAB_LOG_DIR"
+  )
+fi
+
 "$VERL_ENV/bin/python" -m verl.trainer.main_ppo \
   algorithm.adv_estimator=grpo \
   data.train_files="$TRAIN_FILE" \
@@ -119,10 +142,11 @@ fi
   actor_rollout_ref.rollout.tensor_model_parallel_size=1 \
   "${ROLLOUT_ARGS[@]}" \
   actor_rollout_ref.ref.log_prob_micro_batch_size_per_gpu="$LOGPROB_MICRO_BATCH_SIZE_PER_GPU" \
-  actor_rollout_ref.ref.fsdp_config.param_offload=True \
+  actor_rollout_ref.ref.fsdp_config.param_offload=False \
   algorithm.use_kl_in_reward=False \
   reward.custom_reward_function.path="$ROOT_DIR/verl_bridge/reward_fn.py" \
   reward.custom_reward_function.name=compute_score \
+  "${RUNTIME_ENV_ARGS[@]}" \
   trainer.val_before_train=False \
   trainer.critic_warmup=0 \
   trainer.logger="$LOGGER_BACKENDS" \
