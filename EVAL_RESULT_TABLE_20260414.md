@@ -2,42 +2,55 @@
 
 ## 结果范围
 
-这份文档只整理当前仓库里已经汇总完成的 `eval` 结果。
+这份文档整理的是当前 `1.5B` 相关模型已经完成的正式评测结果。
 
-- 数据来源：
-  `eval/summaries/leaderboard.csv`
-  `analysis/results/main_result_table.csv`
-  `eval/summaries/regression_table.csv`
-- 汇总日期：
-  `2026-04-10`
-- `lm-eval-harness`（评测框架）版本：
-  `0.4.11`
+本次汇总纳入的阶段包括：
+
+1. `qwen base`
+2. `qwen base sft`
+3. `grpo sampled24k`
+4. `dapo`
+5. `grpo`
+
+旧版 `0.5B smoke` 结果仍然保留在仓库中，但这份表不再混放进去。
 
 ## 参与对比的模型
 
-- `base`：
-  `Qwen/Qwen2.5-0.5B`
-- `sft`：
-  `outputs/sft/strict_smoke`
-- `rl`：
-  `outputs/grpo/strict_smoke/checkpoints/final`
+1. `qwen base`
+   `Qwen/Qwen2.5-1.5B`
+2. `qwen base sft`
+   `outputs/sft/strict_main_qwen25_15b_base_bs32_ga1`
+3. `grpo sampled24k`
+   `qwen base sft + GRPO sampled24k`
+4. `dapo`
+   `qwen base sft + DAPO`
+5. `grpo`
+   `qwen base sft + GRPO`
 
 ## 主结果表
 
-| 模型阶段 | GSM8K strict | GSM8K flexible | MATH-500 | HellaSwag acc | HellaSwag acc_norm |
+| 模型阶段 | 训练数据量 | GSM8K | MATH-500 | TheoremQA | HellaSwag acc |
 | --- | ---: | ---: | ---: | ---: | ---: |
-| base | 0.26 | 0.28 | 0.00 | 0.38 | 0.52 |
-| sft | 0.36 | 0.26 | 0.00 | 0.40 | 0.52 |
-| rl | 0.38 | 0.20 | 0.00 | 0.40 | 0.54 |
+| qwen base | 0 | 0.0121 | 0.0140 | 0.0576 | 0.5018 |
+| qwen base sft | 1298 | 0.1638 | 0.1440 | 0.1673 | 0.5068 |
+| grpo sampled24k | 24000 | 0.6884 | 0.4760 | 0.2396 | 0.5101 |
+| dapo | 81463 | 0.7028 | 0.4180 | 0.2691 | 0.5105 |
+| grpo | 81463 | 0.7043 | 0.4380 | 0.2784 | 0.5112 |
 
 ## 当前结果说明
 
-1. `GSM8K strict-match` 上，`sft` 相比 `base` 提升 `0.10`，`rl` 相比 `sft` 再提升 `0.02`，当前最好结果是 `0.38`。
-2. `HellaSwag` 基本维持住了原有水平，`rl` 在 `acc_norm` 上比 `base` 高 `0.02`。
-3. `MATH-500` 当前三组结果都是 `0.00`，现有这批 `smoke` 评测还没有体现出提升。
+1. 原始 `Qwen/Qwen2.5-1.5B` 在这套数学指令格式上的分数很低，说明它本身没有学会当前要求的回答格式。
+2. `qwen base sft` 已经把原始 `Base` 从 `GSM8K 0.0121 -> 0.1638`、`MATH-500 0.0140 -> 0.1440`、`TheoremQA 0.0576 -> 0.1673` 拉起来，`HellaSwag acc` 也从 `0.5018 -> 0.5068`。
+3. `GSM8K` 当前最好的是 `grpo`，分数是 `0.7043`。
+4. `MATH-500` 当前最好的是 `grpo sampled24k`，分数是 `0.4760`。
+5. `TheoremQA` 当前最好的是 `grpo`，分数是 `0.2784`。
+6. `HellaSwag acc` 当前最好的是 `grpo`，分数是 `0.5112`。
 
 ## 补充备注
 
-1. 当前汇总文件里有 `GSM8K`、`MATH-500`、`HellaSwag` 三项结果。
-2. `eval/tasks` 目录里虽然已经有 `TheoremQA` 配置，但这份现成汇总里还没有对应分数。
-3. 这份表对应的是仓库内已经落盘的历史评测结果，今天仍在运行的远端训练任务还没有进入这份表。
+1. 这份表统一使用当前仓库内已经完成并保存下来的 `hf` 评测结果。
+2. `GSM8K` 使用的是当前 `mathrl` 任务配置，对应一套统一的答案抽取和归一化逻辑。
+3. `dapo` 与 `grpo` 这两行对应的是中途检查点产物，并非完整训练结束点。
+4. `qwen base` 这一行使用的是纯文本提示格式，没有套用 `chat template`。
+5. `qwen base sft` 使用的是 `Qwen/Qwen2.5-1.5B + LoRA SFT adapter`，评测时沿用当前数学任务的 `chat template`。
+6. `训练数据量` 这一列指的是当前阶段实际使用的训练集样本数，不包含验证集。
