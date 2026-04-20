@@ -1,0 +1,27 @@
+\begin{abstract}
+We present a three-stage training pipeline that takes the open-source
+\modelname{Qwen2.5-1.5B} base model~\cite{qwen25} and turns it into a competent
+mathematical reasoner using only verifiable final answers as reward.
+The pipeline starts with a small, strictly filtered Supervised Fine-Tuning
+(SFT) set of 1\,298 high-quality reasoning traces, then continues with
+large-scale Reinforcement Learning (RL) using either
+GRPO~\cite{deepseekmath} or DAPO~\cite{dapo} on up to $8.1\!\times\!10^{4}$
+verifiable problems drawn from the DeepMath-103K
+collection~\cite{deepmath103k}. We design a multi-component reward that
+combines exact-match correctness, equivalence-aware matching, output-format
+shaping, and several penalties for repetition, role leakage, trailing
+content, and length overflow. Across five reasoning and general benchmarks,
+the final RL checkpoint lifts \code{GSM8K}~\cite{gsm8k} from $0.012$ to
+$0.704$, \code{MATH-500}~\cite{math500,prm800k} from $0.014$ to $0.476$,
+\code{TheoremQA}~\cite{theoremqa} from $0.058$ to $0.278$, while
+\code{HellaSwag}~\cite{hellaswag} accuracy increases slightly
+($0.502\!\to\!0.511$) and 5-shot \code{MMLU}~\cite{mmlu} accuracy stays flat
+within standard error ($0.602\!\to\!0.600$). The results show that a
+verifiable-reward RL pipeline on a 1.5B base can produce large gains on
+mathematical reasoning while preserving general knowledge ability. All code,
+prompts, evaluation configs, and saved samples are released with the
+project.
+\end{abstract}
+
+\noindent\textbf{Keywords:} large language models, reinforcement learning,
+GRPO, DAPO, mathematical reasoning, verifiable rewards, evaluation.

@@ -1,0 +1,95 @@
+\section{Failure Modes}
+\label{sec:failure}
+
+The numerical gains in \cref{sec:results} leave a non-trivial gap to
+perfect accuracy. To understand what is left, we hand-inspected saved
+samples from \code{GSM8K} and \code{TheoremQA} produced by the
+\code{dapo} and \code{grpo} checkpoints. The qualitative analysis is the
+basis for the failure summary in \cref{tab:failures}; the full HTML
+listing is shipped at \code{analysis/failure\_cases\_dapo\_grpo.html}.
+
+\subsection{Format vs.\ semantics}
+The most striking property of the late-stage checkpoints is that the
+\emph{format} failures essentially disappear:
+\begin{itemize}
+  \item \code{Final Answer:} coverage on the saved \code{GSM8K} batches
+    is $1.0$ for both \code{dapo} and \code{grpo}.
+  \item No role-token leakage (\eg stray \code{user:} or
+    \code{assistant:} markers) was observed in the inspected outputs.
+  \item Trailing-content violations are rare; when present, they are
+    short polite sign-offs that the cleanliness penalty $\pTail$ caught
+    during training but did not eliminate at inference.
+\end{itemize}
+
+The remaining failures are therefore mostly \emph{semantic}, which is
+what we want to characterise.
+
+\subsection{A four-way taxonomy}
+\Cref{tab:failures} groups the recurring error patterns observed in the
+inspected samples.
+
+\begin{table}[h]
+\centering
+\small
+\begin{tabularx}{\linewidth}{lXX}
+\toprule
+\textbf{Failure type} & \textbf{Where it appears} & \textbf{What it looks like} \\
+\midrule
+\emph{semantic misread of local wording}
+  & \code{GSM8K}
+  & The model maps a phrase to the wrong operation, \eg reading an
+    alternating discount as a geometric decay. \\
+\emph{event-boundary state error}
+  & \code{GSM8K}
+  & The model loses track of what gets reset after an interruption (a
+    stop, a refill, a new day) and continues from the wrong state. \\
+\emph{overconfident heuristic shortcut}
+  & \code{TheoremQA}
+  & A familiar theorem or symmetry is applied without checking whether the
+    preconditions actually hold for the current problem. \\
+\emph{clean format, wrong content}
+  & \code{dapo}, \code{grpo}
+  & The answer line is well-formed and the reasoning is fluent, but the
+    underlying mathematical path is incorrect. \\
+\bottomrule
+\end{tabularx}
+\caption{Four recurring failure patterns observed on saved samples after
+RL training.}
+\label{tab:failures}
+\end{table}
+
+\subsection{Examples}
+\begin{example}[GSM8K, semantic misread]
+A discount of \emph{50\% off, then 30\% more off the discounted price} is
+sometimes read as a single 80\% discount (\ie additive) or as a
+geometric decay over many steps. The model writes a clean
+\code{Final Answer:} line, but the multiplicative chain
+$0.5 \times 0.7$ is dropped.
+\end{example}
+
+\begin{example}[GSM8K, event-boundary error]
+``She rests for one hour, then continues at the original pace'' is
+treated as if the rest period also accumulates work, leading to a final
+quantity that is off by exactly the rest interval.
+\end{example}
+
+\begin{example}[TheoremQA, heuristic shortcut]
+A symmetry argument that holds for \emph{spherically} symmetric inputs is
+applied to a \emph{cylindrically} symmetric one, producing a final
+expression that is dimensionally correct but quantitatively wrong.
+\end{example}
+
+\subsection{Implications for future work}
+Two practical implications follow:
+
+\begin{itemize}
+  \item Adding a \emph{precondition-check} reward bonus (or a chain-of-thought
+    verifier in the reward function) could specifically attack the
+    \emph{overconfident heuristic shortcut} class on \code{TheoremQA}.
+  \item Adding a \emph{state-consistency} micro-reward (\eg
+    automatic re-evaluation of intermediate quantities) could attack the
+    \emph{event-boundary} class on \code{GSM8K}.
+\end{itemize}
+
+Both of these would require an external verifier beyond the current
+final-answer check, and are left as future work.

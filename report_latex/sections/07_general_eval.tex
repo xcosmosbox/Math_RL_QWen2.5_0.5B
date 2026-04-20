@@ -1,0 +1,69 @@
+\section{Does Math RL Hurt General Ability?}
+\label{sec:general}
+
+A common concern with task-specific RL is that the policy gains on the
+target distribution at the cost of forgetting general capabilities. We
+check this on two general-purpose multiple-choice benchmarks:
+\code{HellaSwag}~\cite{hellaswag} and \code{MMLU}~\cite{mmlu}.
+
+\subsection{Numbers}
+\Cref{tab:general} extracts the two general columns from
+\cref{tab:main} and adds the standard error from
+\emph{lm-eval-harness} for both benchmarks.
+
+\begin{table}[h]
+\centering
+\small
+\begin{tabular}{lcc}
+\toprule
+\textbf{Model stage} & \textbf{HellaSwag acc} & \textbf{MMLU acc (5-shot)} \\
+\midrule
+qwen base       & $0.5018$            & $0.6019 \pm 0.0039$ \\
+qwen base sft   & $0.5068$            & $0.5993 \pm 0.0039$ \\
+grpo sampled24k & $0.5101$            & $0.6030 \pm 0.0039$ \\
+dapo            & $0.5105$            & $0.6014 \pm 0.0039$ \\
+grpo            & $0.5112$            & $0.5998 \pm 0.0039$ \\
+\bottomrule
+\end{tabular}
+\caption{General-ability evaluation. \code{HellaSwag} is 0-shot;
+\code{MMLU} is 5-shot, aggregated across 57 subjects with 14\,042
+questions, weighted by subject size. Standard error is reported by
+\emph{lm-eval-harness}.}
+\label{tab:general}
+\end{table}
+
+\subsection{Reading the table}
+\paragraph{HellaSwag.}
+The HellaSwag accuracy moves \emph{slightly upward} along the
+training pipeline, from $0.502$ at the base to $0.511$ at the final
+\code{grpo} checkpoint. The differences are small (less than $1.0$
+absolute percentage point) but the direction is monotonic, suggesting
+that the math pipeline at least does not damage commonsense
+multiple-choice judgement.
+
+\paragraph{MMLU.}
+The MMLU column is the more demanding general test. All five model
+stages land in the narrow band $[0.5993, 0.6030]$. With a per-row standard
+error of $\pm 0.0039$, all five MMLU numbers are statistically
+indistinguishable. The pipeline consequently leaves multi-subject knowledge
+ability essentially unchanged --- neither the small SFT step nor the much
+larger RL step measurably degrades it.
+
+\subsection{Why this matters}
+The combined picture from \cref{tab:main}, \cref{tab:general},
+\cref{fig:resplen}, and \cref{fig:reward} is consistent with a clean
+interpretation: a verifiable-reward RL stage on a 1.5B base \emph{can}
+deliver multi-fold accuracy gains on math reasoning while keeping general
+knowledge ability intact. A negative result on either general benchmark
+would have suggested that the reward shape is too narrow or that the RL
+update is over-fitting to surface-level math patterns. We do not see that
+here.
+
+\begin{remark}
+The MMLU evaluation is intentionally run \emph{without} the math chat
+template: the lm-eval-harness MMLU task scores by comparing the
+loglikelihood of the four answer letters \code{A}/\code{B}/\code{C}/\code{D}
+under the model, and a chat template would change the conditioning text
+in a way that breaks comparability across the five models. The same
+applies to \code{HellaSwag}.
+\end{remark}

@@ -1,0 +1,59 @@
+\section{Introduction}
+\label{sec:intro}
+
+\paragraph{Motivation.}
+Recent results on mathematical reasoning have shown that small open-source
+language models, originally trained only with next-token prediction, can be
+substantially improved by reinforcement learning with verifiable
+rewards~\cite{deepseekmath, deepseekr1, dapo}. The recipe is now widely
+agreed upon: (i) start from a competent base model, (ii) teach the model the
+required answer format with a small supervised fine-tuning step, and
+(iii) optimise a verifiable correctness signal on a much larger pool of
+problems whose final answers can be checked automatically.
+
+This report documents a course-project implementation of that recipe on a
+single 1.5B-parameter base model, \modelname{Qwen2.5-1.5B}~\cite{qwen25}.
+We deliberately keep the moving parts small: one base model, one SFT subset,
+one main RL data pool with two scales, two RL algorithms (GRPO and DAPO),
+and one shared evaluation suite. The goal is not to set a new
+state-of-the-art number, but to (a) reproduce the reported pattern of
+``small SFT followed by larger verifiable-reward RL'' end-to-end, (b) study
+how each stage moves five evaluation benchmarks, and (c) check whether the
+mathematical training causes any regression on general knowledge tasks.
+
+\paragraph{Contributions.}
+The concrete contributions of this report are:
+
+\begin{enumerate}
+  \item \textbf{End-to-end pipeline.} A reproducible three-stage pipeline
+    (base $\rightarrow$ SFT $\rightarrow$ GRPO/DAPO) on
+    \modelname{Qwen2.5-1.5B}, with strict separation between a clean SFT set
+    requiring full reasoning traces and a large RL-ready set requiring only
+    verifiable final answers (\cref{sec:data}).
+  \item \textbf{Composite reward function.} A reward shape that combines
+    exact-match and equivalence-aware correctness with several format,
+    cleanliness, and length-control terms. The exact contributions are
+    listed in \cref{sec:reward}.
+  \item \textbf{Five-benchmark evaluation matrix.} A unified evaluation
+    that covers three mathematical benchmarks (\code{GSM8K},
+    \code{MATH-500}, \code{TheoremQA}) and two general benchmarks
+    (\code{HellaSwag}, \code{MMLU}), all run through
+    \emph{lm-eval-harness}~\cite{lmevalharness} with the same backend and
+    decoding configuration. The complete numerical table is in
+    \cref{sec:results}.
+  \item \textbf{Failure-mode taxonomy.} A short qualitative analysis on
+    saved \code{GSM8K} and \code{TheoremQA} samples that classifies the
+    remaining errors into four recurring patterns
+    (\cref{sec:failure}).
+\end{enumerate}
+
+\paragraph{Outline.}
+\Cref{sec:data} describes data preparation and the four data layers.
+\Cref{sec:method} explains the three-stage training design.
+\Cref{sec:reward} details the composite reward.
+\Cref{sec:exp} fixes the experimental setup and shows training-time
+dynamics for the two RL variants. \Cref{sec:results} reports the main
+benchmark table. \Cref{sec:general} focuses on whether mathematical
+training degrades general ability. \Cref{sec:failure} analyses the
+remaining failure modes, and \cref{sec:conclusion} summarises and lists
+limitations.

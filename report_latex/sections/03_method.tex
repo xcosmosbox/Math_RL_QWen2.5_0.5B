@@ -1,0 +1,109 @@
+\section{Method}
+\label{sec:method}
+
+\subsection{Three-stage training design}
+Our pipeline has three sequential stages, summarised in
+\cref{tab:stages}.
+
+\begin{table}[h]
+\centering
+\small
+\begin{tabularx}{\linewidth}{lXrl}
+\toprule
+\textbf{Stage} & \textbf{Purpose} & \textbf{Train size} & \textbf{Data} \\
+\midrule
+S1: base reference     & Provide a starting score with no training            & 0       & --- \\
+S2: SFT               & Teach answer format, reasoning style, output schema  & 1\,298  & \code{strict\_main} \\
+S3: GRPO/DAPO         & Optimise verifiable correctness on a large pool      & up to 81\,463 & \code{rl\_strict} or \code{sampled24k} \\
+\bottomrule
+\end{tabularx}
+\caption{Three training stages used in this report. S1 is evaluation only.}
+\label{tab:stages}
+\end{table}
+
+\subsection{Base model}
+We use \modelname{Qwen2.5-1.5B}~\cite{qwen25} as the base. Earlier internal
+tests on a smaller \modelname{Qwen2.5-0.5B} variant proved unstable across
+both SFT and RL, so all numbers in this report use the 1.5B variant. We
+keep three model artefact types throughout the project, listed in
+\cref{tab:models}.
+
+\begin{table}[h]
+\centering
+\small
+\begin{tabularx}{\linewidth}{lXX}
+\toprule
+\textbf{Form} & \textbf{Identifier} & \textbf{Use} \\
+\midrule
+\code{base}        & \modelname{Qwen2.5-1.5B}                                 & Reference for S1 \\
+\code{sft}         & \code{outputs/sft/strict\_main\_qwen25\_15b\_base\_bs32\_ga1}    & LoRA SFT result, S2 output \\
+\code{sft merged}  & \code{qwen base sft merged}                              & Full-parameter base for GRPO/verl \\
+\bottomrule
+\end{tabularx}
+\caption{Three model forms used during training and evaluation.}
+\label{tab:models}
+\end{table}
+
+\subsection{Stage 2: SFT}
+The S2 stage performs supervised fine-tuning on the
+\code{strict\_main} ShareGPT export. We use a LoRA adapter with rank 16,
+batch size 32, and one gradient-accumulation step on a single GPU. The
+training objective is the standard next-token cross-entropy on the
+assistant turn only. The aim is purely to teach the model:
+
+\begin{itemize}
+  \item the math instruction template (problem $+$ requirements);
+  \item the structure of a concise step-by-step reasoning trace;
+  \item the unique \code{Final Answer: <answer>} closing line.
+\end{itemize}
+
+After S2, the LoRA adapter can either be evaluated directly (rows ``qwen
+base sft'' below) or merged into the base weights to provide a starting
+point for full-parameter RL.
+
+\subsection{Stage 3: GRPO and DAPO}
+Stage 3 applies a verifiable-reward RL algorithm. We use two related
+algorithms:
+
+\begin{itemize}
+  \item \textbf{GRPO}~\cite{deepseekmath}, which estimates the advantage by
+    standardising rewards within a group of $G$ rollouts that share the
+    same prompt, removing the need for a separate value network.
+  \item \textbf{DAPO}~\cite{dapo}, which extends GRPO with decoupled
+    clipping bounds and a dynamic-sampling strategy that drops trivial or
+    impossible prompts on the fly. We use the open-source \emph{verl}
+    framework~\cite{verl} to run both algorithms on a single GPU.
+\end{itemize}
+
+For a prompt $q$ with reference answer $a^{*}$ and a group of $G$ sampled
+completions $\{o_i\}_{i=1}^{G}$, GRPO uses the standardised advantage
+\begin{equation}
+\hat A_i \;=\; \frac{R(q, o_i, a^{*}) - \mu_R}{\sigma_R + \varepsilon},
+\qquad i = 1,\dots,G,
+\label{eq:advantage}
+\end{equation}
+where $\mu_R$ and $\sigma_R$ are the mean and standard deviation of the
+group rewards, $\varepsilon$ is a small constant for numerical stability,
+and $R(\cdot)$ is the composite reward defined in \cref{sec:reward}.
+
+The policy is then updated with a PPO-style clipped objective
+\begin{equation}
+\mathcal{L}_{\text{policy}}(\theta) \;=\;
+- \mathbb{E}\!\left[\min\!\Big(\rho_i\, \hat A_i,\;
+  \mathrm{clip}(\rho_i, 1-\epsilon,\, 1+\epsilon)\, \hat A_i\Big)\right],
+\quad
+\rho_i \;=\; \frac{\pi_\theta(o_i \mid q)}{\pi_{\theta_{\text{old}}}(o_i \mid q)}.
+\label{eq:ppo}
+\end{equation}
+A KL term against the SFT reference policy is added with a small
+coefficient. The DAPO variant replaces the symmetric clip $\epsilon$ with
+the asymmetric pair $(\epsilon_{\text{low}}, \epsilon_{\text{high}})$ and
+filters prompts whose group reward is degenerate.
+
+\subsection{Checkpoints reported}
+Within stage 3 we evaluate three named checkpoints:
+\code{grpo sampled24k}, \code{dapo}, and \code{grpo}. The first uses the
+24K balanced sub-sample, the latter two use the full
+\code{rl\_strict} pool of 81\,463 problems. Both \code{dapo} and \code{grpo}
+correspond to mid-training checkpoints (step 150) rather than the very last
+training step, since their accuracy curves had already plateaued.

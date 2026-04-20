@@ -1,0 +1,79 @@
+\section{Reward Function}
+\label{sec:reward}
+
+\subsection{Design philosophy}
+Early experiments using a single $\{0,1\}$ correctness reward produced
+unstable training: gradient signals were sparse and the policy quickly
+learnt to exploit boundary cases (truncated answers, role-token leakage,
+or extremely long output that hides the answer). Following the lesson
+patterns in DeepSeek-Math~\cite{deepseekmath} and DAPO~\cite{dapo}, we use a
+\emph{composite} reward that mixes positive shaping terms for correct and
+clean outputs with several explicit penalties.
+
+The total reward $R(q,o,a^{*})$ for a prompt $q$, completion $o$, and
+reference answer $a^{*}$ is the sum of all components defined in
+\cref{tab:reward-components}.
+
+\subsection{Components}
+\begin{table}[h]
+\centering
+\small
+\begin{tabularx}{\linewidth}{lrX}
+\toprule
+\textbf{Component} & \textbf{Score} & \textbf{When applied} \\
+\midrule
+$\rExact$       & $+1.00$         & extracted final answer is character-equal to $a^{*}$ after normalisation \\
+$\rEquiv$       & $+0.80$         & extracted answer is mathematically equivalent to $a^{*}$ but textually different \\
+$\rFmt$         & $+0.05$         & output ends with a single well-formed \code{Final Answer:} line \\
+$\rClean$       & $+0.03$         & no spurious trailing content after the answer line \\
+\code{<answer>} bonus & $0.00$    & reserved hook, currently disabled \\
+$\pNoAns$       & $-0.12$         & no answer can be extracted from the output \\
+$\pRep$         & $-0.08$         & visible repetition (n-gram or paragraph) detected \\
+$\pRole$        & $-0.08$         & role tokens (\code{user}, \code{assistant}, \dots) leak into the output \\
+$\pTail$        & up to $-0.20$   & long irrelevant text after the answer line \\
+$\pLen$         & up to $-0.05$   & output exceeds the length budget \\
+\bottomrule
+\end{tabularx}
+\caption{All reward components used in training. All shape terms are
+additive.}
+\label{tab:reward-components}
+\end{table}
+
+\subsection{Formal expression}
+Let $\hat a(o)$ denote the answer extracted from the completion $o$. With
+the indicator $\mathbb{1}[\cdot]$ we can write
+\begin{align}
+R(q, o, a^{*})
+&= \rExact \cdot \mathbb{1}[\hat a(o) \equiv_{\text{str}} a^{*}]
+ + \rEquiv \cdot \mathbb{1}[\hat a(o) \equiv_{\text{math}} a^{*}] \notag\\
+&\;{+}\; \rFmt \cdot \mathbb{1}[\text{format ok}]
+ + \rClean \cdot \mathbb{1}[\text{no tail}] \notag\\
+&\;{-}\; \pNoAns \cdot \mathbb{1}[\hat a(o) = \varnothing]
+ - \pRep   \cdot \mathbb{1}[\text{repetition}] \notag\\
+&\;{-}\; \pRole - \pTail(o) - \pLen(o),
+\label{eq:reward}
+\end{align}
+where the two correctness indicators are mutually exclusive (an exact
+match takes precedence over equivalence). The length penalty $\pLen(o)$
+starts at zero up to a budget of \textbf{256 tokens} and grows linearly
+beyond that, capped at $-0.05$.
+
+\subsection{Answer extraction and normalisation}
+Three answer formats are accepted in parallel:
+\code{Final Answer: <answer>}, \code{<answer>...</answer>}, and
+\code{$\backslash$boxed\{...\}}. After extraction the answer string goes
+through a normalisation pass that
+(i)~removes thousand separators in numbers,
+(ii)~unifies $\sqrt{\cdot}$ written as \code{\textbackslash sqrt\{\}} or as
+the Unicode glyph \code{$\sqrt{\,}$},
+(iii)~normalises common minus and division signs,
+(iv)~accepts simple algebraic equivalents (\eg $0.5$ vs.\ $1/2$), and
+(v)~trims trailing text past the answer anchor when present. Equivalence
+matching is checked after normalisation only when the exact match fails.
+
+\subsection{Empirical observations}
+The composite design has two practical effects. First, removing $\pTail$
+in an ablation produced visible reward hacking: long noise after a correct
+answer line. Second, removing $\pLen$ slowly inflated average response
+length without a measurable accuracy gain, wasting decoding budget. Both
+penalties stayed in the final recipe.

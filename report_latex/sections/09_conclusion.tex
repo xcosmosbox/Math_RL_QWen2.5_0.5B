@@ -1,0 +1,71 @@
+\section{Conclusion}
+\label{sec:conclusion}
+
+\subsection{What we built}
+This report walked through a complete three-stage pipeline that takes
+\modelname{Qwen2.5-1.5B} from a base model that essentially fails on math
+benchmarks under our instruction template to a 1.5B-parameter model that
+solves $\sim70\%$ of \code{GSM8K} and $\sim45\%$ of \code{MATH-500}. The
+pipeline has three replaceable parts: (i) a small SFT step on
+\textbf{1\,298} cleaned reasoning traces, (ii) a verifiable-reward RL
+step on up to \textbf{81\,463} math problems using GRPO or DAPO, and
+(iii) a composite reward that mixes correctness, format shaping, and
+several length-and-cleanliness penalties.
+
+\subsection{Headline takeaways}
+\begin{enumerate}
+  \item \emph{Most of the math gain comes from RL.} SFT alone explains
+    only the first $\sim10\!\times$ improvement on \code{GSM8K} and
+    \code{MATH-500}. The much larger second jump comes from the
+    verifiable-reward RL stage.
+  \item \emph{GRPO and DAPO are nearly equivalent} under our reward
+    shape and hyperparameter range. The numerical differences in
+    \cref{tab:main} are smaller than the difference between the two
+    different training pools.
+  \item \emph{General ability is preserved.} Both \code{HellaSwag} and
+    \code{MMLU} stay at the base level (\code{HellaSwag} drifts slightly
+    upwards, \code{MMLU} stays statistically flat).
+  \item \emph{Format failures disappear, semantic ones remain.} After
+    RL, the inspected samples no longer show role-token leakage or
+    truncated answer lines. The remaining errors are dominated by the
+    four semantic patterns in \cref{tab:failures}.
+\end{enumerate}
+
+\subsection{Limitations}
+\begin{itemize}
+  \item \emph{Scale.} A single 1.5B base model on a single GPU does not
+    establish how the same recipe transfers to 7B+ regimes. Earlier
+    internal experiments at 0.5B already showed that very small bases are
+    fragile in both SFT and RL, suggesting non-linear interaction with
+    scale.
+  \item \emph{Reward shape.} The reward function in \cref{sec:reward} is
+    hand-tuned. A more principled comparison against simpler rewards
+    (\eg pure $\{0,1\}$ correctness or correctness $+$ format only)
+    would clarify which terms are necessary versus convenient.
+  \item \emph{Checkpoints.} The reported \code{dapo} and \code{grpo}
+    rows correspond to step-150 checkpoints rather than the final
+    training step, since the reward and length curves had already
+    plateaued. A more careful early-stopping protocol could shift the
+    headline numbers slightly.
+  \item \emph{Failure analysis.} The four-way taxonomy in
+    \cref{tab:failures} is qualitative; a quantitative count over a
+    larger inspected pool would make the priorities for future reward
+    additions sharper.
+\end{itemize}
+
+\subsection{Future work}
+Two concrete extensions follow naturally from
+\cref{sec:failure}: a precondition-aware reward to attack
+\emph{overconfident heuristic shortcuts} on \code{TheoremQA}, and a
+state-consistency micro-reward to attack \emph{event-boundary} errors on
+\code{GSM8K}. Both require an external verifier richer than the current
+final-answer check, but the current pipeline cleanly accommodates an
+extra reward component without changing the rest of the stack.
+
+\paragraph{Reproducibility.}
+All code, prompts, hyperparameter scripts, evaluation configurations, and
+saved samples are kept in the project repository under
+\code{training/}, \code{rewards/}, \code{verl\_bridge/}, and
+\code{eval/}. The complete result table is in
+\code{EVAL\_RESULT\_TABLE\_20260414.md}, and the
+training-progress narrative is in \code{PROJECT\_REPORT.md}.

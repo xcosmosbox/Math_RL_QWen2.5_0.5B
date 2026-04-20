@@ -1,0 +1,109 @@
+% =============================================================================
+% Preamble: packages, page geometry, custom commands.
+% =============================================================================
+
+% --- Page layout -------------------------------------------------------------
+\usepackage[a4paper, margin=1in]{geometry}
+\usepackage{microtype}
+\usepackage{setspace}
+\setstretch{1.05}
+
+% --- Encoding & fonts --------------------------------------------------------
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage{lmodern}
+
+% --- Math --------------------------------------------------------------------
+\usepackage{amsmath}
+\usepackage{amssymb}
+\usepackage{amsthm}
+\usepackage{mathtools}
+
+% --- Tables & figures --------------------------------------------------------
+\usepackage{graphicx}
+\usepackage{booktabs}
+\usepackage{multirow}
+\usepackage{array}
+\usepackage{tabularx}
+\usepackage{caption}
+\usepackage{subcaption}
+\usepackage{float}
+
+% --- Lists & enumeration -----------------------------------------------------
+\usepackage{enumitem}
+\setlist{nosep, leftmargin=*}
+
+% --- Code listings -----------------------------------------------------------
+\usepackage{listings}
+\usepackage{xcolor}
+\definecolor{codebg}{RGB}{248,248,248}
+\definecolor{codekw}{RGB}{0,90,160}
+\definecolor{codestr}{RGB}{160,40,40}
+\definecolor{codecmt}{RGB}{100,120,100}
+\lstset{
+  basicstyle=\ttfamily\footnotesize,
+  backgroundcolor=\color{codebg},
+  keywordstyle=\color{codekw}\bfseries,
+  stringstyle=\color{codestr},
+  commentstyle=\color{codecmt}\itshape,
+  showstringspaces=false,
+  breaklines=true,
+  frame=single,
+  framesep=3pt,
+  framerule=0.3pt,
+  rulecolor=\color{black!30},
+  xleftmargin=4pt,
+  xrightmargin=4pt,
+  numbers=none,
+  tabsize=2,
+  captionpos=b,
+}
+\lstdefinelanguage{json}{
+  string=[s]{"}{"},
+  stringstyle=\color{codestr},
+  comment=[l]{//},
+  commentstyle=\color{codecmt}\itshape,
+  morekeywords={true,false,null},
+  keywordstyle=\color{codekw}\bfseries,
+}
+
+% --- Bibliography ------------------------------------------------------------
+\usepackage[
+  backend=biber,
+  style=numeric-comp,
+  sorting=none,
+  maxbibnames=8,
+  giveninits=true,
+  uniquename=init,
+]{biblatex}
+\addbibresource{references.bib}
+
+% --- Hyperlinks --------------------------------------------------------------
+\usepackage[colorlinks=true,
+  linkcolor=blue!50!black,
+  citecolor=blue!50!black,
+  urlcolor=blue!50!black]{hyperref}
+\usepackage[capitalise]{cleveref}
+
+% --- Custom commands ---------------------------------------------------------
+\usepackage{xspace}
+\newcommand{\modelname}[1]{\textsc{#1}}
+\newcommand{\code}[1]{\texttt{#1}}
+\newcommand{\eg}{e.g.,\xspace}
+\newcommand{\ie}{i.e.,\xspace}
+
+% Reward / penalty notation
+\newcommand{\rExact}{r_{\text{exact}}}
+\newcommand{\rEquiv}{r_{\text{equiv}}}
+\newcommand{\rFmt}{r_{\text{fmt}}}
+\newcommand{\rClean}{r_{\text{clean}}}
+\newcommand{\pNoAns}{p_{\text{noans}}}
+\newcommand{\pRep}{p_{\text{rep}}}
+\newcommand{\pRole}{p_{\text{role}}}
+\newcommand{\pTail}{p_{\text{tail}}}
+\newcommand{\pLen}{p_{\text{len}}}
+
+% Theorem-like environments
+\theoremstyle{definition}
+\newtheorem{example}{Example}
+\newtheorem{remark}{Remark}

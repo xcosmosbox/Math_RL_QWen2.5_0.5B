@@ -1,0 +1,16 @@
+# latexmk configuration file.
+# Uses pdflatex + biber for the bibliography.
+
+$pdf_mode = 1;                  # produce PDF
+$pdflatex = 'pdflatex -interaction=nonstopmode -file-line-error -synctex=1 %O %S';
+$bibtex_use = 2;                # always run bibtex/biber
+$biber = 'biber %O %B';
+
+# Treat .bib changes as a trigger for re-runs
+$bibtex_default_path = '';
+
+# Clean targets
+$clean_ext = "aux bbl bcf blg log out run.xml synctex.gz toc fls fdb_latexmk";
+
+# Preview command (only useful on dev machines that have a viewer)
+$preview_continuous_mode = 0;
