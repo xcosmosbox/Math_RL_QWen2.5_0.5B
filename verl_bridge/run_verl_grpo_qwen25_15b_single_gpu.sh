@@ -20,10 +20,25 @@ LORA_ADAPTER="${LORA_ADAPTER:-$ROOT_DIR/outputs/sft/strict_main_qwen25_15b_bs32_
 SWANLAB_MODE="${SWANLAB_MODE:-cloud}"
 SWANLAB_LOG_DIR="${SWANLAB_LOG_DIR:-$OUTPUT_DIR/swanlog}"
 ROLLOUT_ENGINE="${ROLLOUT_ENGINE:-vllm}"
+SGLANG_ATTENTION_BACKEND="${SGLANG_ATTENTION_BACKEND:-flashinfer}"
 LOGGER_BACKENDS="${LOGGER_BACKENDS:-[\"console\",\"file\",\"swanlab\"]}"
 RESUME_MODE="${RESUME_MODE:-auto}"
 RESUME_FROM_PATH="${RESUME_FROM_PATH:-}"
 VERL_RUNTIME_PATCH="${VERL_RUNTIME_PATCH:-1}"
+VERL_DISABLE_TORCHAO="${VERL_DISABLE_TORCHAO:-0}"
+REWARD_MANAGER_NAME="${REWARD_MANAGER_NAME:-naive}"
+ACTOR_USE_KL_LOSS="${ACTOR_USE_KL_LOSS:-true}"
+ACTOR_KL_LOSS_COEF="${ACTOR_KL_LOSS_COEF:-0.001}"
+ACTOR_KL_LOSS_TYPE="${ACTOR_KL_LOSS_TYPE:-low_var_kl}"
+ACTOR_LOSS_AGG_MODE="${ACTOR_LOSS_AGG_MODE:-}"
+ACTOR_CLIP_RATIO_LOW="${ACTOR_CLIP_RATIO_LOW:-}"
+ACTOR_CLIP_RATIO_HIGH="${ACTOR_CLIP_RATIO_HIGH:-}"
+USE_DYNAMIC_BSZ="${USE_DYNAMIC_BSZ:-false}"
+ACTOR_PPO_MAX_TOKEN_LEN_PER_GPU="${ACTOR_PPO_MAX_TOKEN_LEN_PER_GPU:-}"
+LOGPROB_MAX_TOKEN_LEN_PER_GPU="${LOGPROB_MAX_TOKEN_LEN_PER_GPU:-}"
+ROLLOUT_MAX_NUM_BATCHED_TOKENS="${ROLLOUT_MAX_NUM_BATCHED_TOKENS:-}"
+ACTOR_PARAM_OFFLOAD="${ACTOR_PARAM_OFFLOAD:-true}"
+REF_PARAM_OFFLOAD="${REF_PARAM_OFFLOAD:-true}"
 
 TRAIN_BATCH_SIZE="${TRAIN_BATCH_SIZE:-64}"
 MAX_PROMPT_LENGTH="${MAX_PROMPT_LENGTH:-1024}"
@@ -53,12 +68,15 @@ export SWANLAB_LOG_DIR
 export RAY_TMPDIR
 export RAY_ADDRESS="${RAY_ADDRESS:-local}"
 export VERL_RUNTIME_PATCH
+export VERL_DISABLE_TORCHAO
 export TMPDIR
 export TEMP="$TMPDIR"
 export TMP="$TMPDIR"
 export CUDA_TMPDIR="$TMPDIR"
 
-"$VERL_ENV/bin/ray" stop --force >/dev/null 2>&1 || true
+if [[ "${SKIP_RAY_STOP:-0}" != "1" ]]; then
+  timeout 15 "$VERL_ENV/bin/ray" stop --force >/dev/null 2>&1 || true
+fi
 
 MODEL_ARGS=(
   actor_rollout_ref.model.path="$BASE_MODEL"
@@ -72,6 +90,60 @@ if [[ "$USE_LORA" == "true" ]]; then
   )
 fi
 
+ACTOR_ARGS=(
+  actor_rollout_ref.actor.optim.lr=1e-6
+  actor_rollout_ref.actor.ppo_mini_batch_size="$PPO_MINI_BATCH_SIZE"
+  actor_rollout_ref.actor.use_kl_loss="$ACTOR_USE_KL_LOSS"
+  actor_rollout_ref.actor.kl_loss_coef="$ACTOR_KL_LOSS_COEF"
+  actor_rollout_ref.actor.kl_loss_type="$ACTOR_KL_LOSS_TYPE"
+  actor_rollout_ref.actor.entropy_coeff=0
+  actor_rollout_ref.actor.fsdp_config.param_offload="$ACTOR_PARAM_OFFLOAD"
+  actor_rollout_ref.actor.fsdp_config.optimizer_offload=True
+)
+
+if [[ "$USE_DYNAMIC_BSZ" == "true" ]]; then
+  ACTOR_ARGS+=(
+    actor_rollout_ref.actor.use_dynamic_bsz=True
+    actor_rollout_ref.ref.log_prob_use_dynamic_bsz=True
+    actor_rollout_ref.rollout.log_prob_use_dynamic_bsz=True
+  )
+  if [[ -n "$ACTOR_PPO_MAX_TOKEN_LEN_PER_GPU" ]]; then
+    ACTOR_ARGS+=(
+      actor_rollout_ref.actor.ppo_max_token_len_per_gpu="$ACTOR_PPO_MAX_TOKEN_LEN_PER_GPU"
+    )
+  fi
+  if [[ -n "$LOGPROB_MAX_TOKEN_LEN_PER_GPU" ]]; then
+    ACTOR_ARGS+=(
+      actor_rollout_ref.ref.log_prob_max_token_len_per_gpu="$LOGPROB_MAX_TOKEN_LEN_PER_GPU"
+      actor_rollout_ref.rollout.log_prob_max_token_len_per_gpu="$LOGPROB_MAX_TOKEN_LEN_PER_GPU"
+    )
+  fi
+else
+  ACTOR_ARGS+=(
+    actor_rollout_ref.actor.ppo_micro_batch_size_per_gpu="$PPO_MICRO_BATCH_SIZE_PER_GPU"
+    actor_rollout_ref.rollout.log_prob_micro_batch_size_per_gpu="$LOGPROB_MICRO_BATCH_SIZE_PER_GPU"
+    actor_rollout_ref.ref.log_prob_micro_batch_size_per_gpu="$LOGPROB_MICRO_BATCH_SIZE_PER_GPU"
+  )
+fi
+
+if [[ -n "$ACTOR_LOSS_AGG_MODE" ]]; then
+  ACTOR_ARGS+=(
+    actor_rollout_ref.actor.loss_agg_mode="$ACTOR_LOSS_AGG_MODE"
+  )
+fi
+
+if [[ -n "$ACTOR_CLIP_RATIO_LOW" ]]; then
+  ACTOR_ARGS+=(
+    actor_rollout_ref.actor.clip_ratio_low="$ACTOR_CLIP_RATIO_LOW"
+  )
+fi
+
+if [[ -n "$ACTOR_CLIP_RATIO_HIGH" ]]; then
+  ACTOR_ARGS+=(
+    actor_rollout_ref.actor.clip_ratio_high="$ACTOR_CLIP_RATIO_HIGH"
+  )
+fi
+
 ROLLOUT_ARGS=(
   actor_rollout_ref.rollout.name="$ROLLOUT_ENGINE"
   actor_rollout_ref.rollout.gpu_memory_utilization="$GPU_MEMORY_UTILIZATION"
@@ -79,9 +151,21 @@ ROLLOUT_ARGS=(
   actor_rollout_ref.rollout.load_format=safetensors
 )
 
+if [[ -n "$ROLLOUT_MAX_NUM_BATCHED_TOKENS" ]]; then
+  ROLLOUT_ARGS+=(
+    actor_rollout_ref.rollout.max_num_batched_tokens="$ROLLOUT_MAX_NUM_BATCHED_TOKENS"
+  )
+fi
+
 if [[ "$ROLLOUT_ENGINE" == "vllm" ]]; then
   ROLLOUT_ARGS+=(
     actor_rollout_ref.rollout.layered_summon=True
+  )
+fi
+
+if [[ "$ROLLOUT_ENGINE" == "sglang" ]]; then
+  ROLLOUT_ARGS+=(
+    +actor_rollout_ref.rollout.engine_kwargs.sglang.attention_backend="$SGLANG_ATTENTION_BACKEND"
   )
 fi
 
@@ -97,6 +181,7 @@ fi
 
 RUNTIME_ENV_ARGS=(
   "+ray_kwargs.ray_init.runtime_env.env_vars.VERL_RUNTIME_PATCH='$VERL_RUNTIME_PATCH'"
+  "+ray_kwargs.ray_init.runtime_env.env_vars.VERL_DISABLE_TORCHAO='$VERL_DISABLE_TORCHAO'"
   +ray_kwargs.ray_init.runtime_env.env_vars.PYTHONPATH="$ROOT_DIR:$VERL_REPO"
 )
 
@@ -129,21 +214,12 @@ fi
   data.truncation=error \
   data.shuffle=False \
   "${MODEL_ARGS[@]}" \
-  actor_rollout_ref.actor.optim.lr=1e-6 \
-  actor_rollout_ref.actor.ppo_mini_batch_size="$PPO_MINI_BATCH_SIZE" \
-  actor_rollout_ref.actor.ppo_micro_batch_size_per_gpu="$PPO_MICRO_BATCH_SIZE_PER_GPU" \
-  actor_rollout_ref.actor.use_kl_loss=True \
-  actor_rollout_ref.actor.kl_loss_coef=0.001 \
-  actor_rollout_ref.actor.kl_loss_type=low_var_kl \
-  actor_rollout_ref.actor.entropy_coeff=0 \
-  actor_rollout_ref.actor.fsdp_config.param_offload=False \
-  actor_rollout_ref.actor.fsdp_config.optimizer_offload=False \
-  actor_rollout_ref.rollout.log_prob_micro_batch_size_per_gpu="$LOGPROB_MICRO_BATCH_SIZE_PER_GPU" \
+  "${ACTOR_ARGS[@]}" \
   actor_rollout_ref.rollout.tensor_model_parallel_size=1 \
   "${ROLLOUT_ARGS[@]}" \
-  actor_rollout_ref.ref.log_prob_micro_batch_size_per_gpu="$LOGPROB_MICRO_BATCH_SIZE_PER_GPU" \
-  actor_rollout_ref.ref.fsdp_config.param_offload=False \
+  actor_rollout_ref.ref.fsdp_config.param_offload="$REF_PARAM_OFFLOAD" \
   algorithm.use_kl_in_reward=False \
+  reward.reward_manager.name="$REWARD_MANAGER_NAME" \
   reward.custom_reward_function.path="$ROOT_DIR/verl_bridge/reward_fn.py" \
   reward.custom_reward_function.name=compute_score \
   "${RUNTIME_ENV_ARGS[@]}" \

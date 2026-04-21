@@ -71,6 +71,189 @@
 
 ## 三、样本格式处理
 
+当前主线里，数据格式实际分成四层来看会更清楚：原始下载层、中间清洗层、`SFT` 导出层、`GRPO` 导出层。
+
+### 当前实际数据格式
+
+#### 1. 原始下载层
+
+原始文件是 `data/raw/deepmath_103k_raw.jsonl`，每行一条 `json`，当前字段如下：
+
+| 字段 | 含义 |
+| --- | --- |
+| `question` | 题目正文 |
+| `final_answer` | 标准最终答案 |
+| `r1_solution_1` | 候选解答 1 |
+| `r1_solution_2` | 候选解答 2 |
+| `r1_solution_3` | 候选解答 3 |
+| `difficulty` | 难度分数 |
+| `topic` | 原始主题路径 |
+
+最小样例如下：
+
+```json
+{
+  "question": "Evaluate the limit: ...",
+  "final_answer": "0",
+  "r1_solution_1": "Okay, so I have this limit to evaluate...",
+  "r1_solution_2": "...",
+  "r1_solution_3": "...",
+  "difficulty": 4.5,
+  "topic": "Mathematics -> ..."
+}
+```
+
+这一层还是下载得到的原始结构，题目、答案和三份候选解答都还没有统一成训练直接使用的格式。
+
+#### 2. 中间清洗层
+
+这一层对应 `data/processed/filtered_strict_train.jsonl` 这类文件，主要给 `SFT` 准备。当前字段如下：
+
+| 字段 | 含义 |
+| --- | --- |
+| `sample_id` | 样本唯一标识 |
+| `prompt` | 清洗后的题目正文 |
+| `target_final_answer` | 归一化后的最终答案 |
+| `chosen_solution` | 最终选中的推理正文 |
+| `candidate_solutions` | 保留下来的候选解答列表 |
+| `difficulty` | 难度分数 |
+| `topic` | 主题路径 |
+| `task_type` | 映射后的题型 |
+| `split` | `train / valid / test` |
+| `filter_flags` | 过滤与保留标记 |
+| `is_verifiable` | 是否能从标准答案验证 |
+| `raw_question` | 原始题目 |
+| `raw_final_answer` | 原始答案 |
+| `raw_r1_solution_1/2/3` | 原始候选解答 |
+| `drop_reason` | 未通过规则时的原因，保留接口 |
+
+最小样例如下：
+
+```json
+{
+  "sample_id": "0066adc100abc32d084e",
+  "prompt": "If two random variables, X and Y, have the same characteristic function, does it imply that they are identically distributed?",
+  "target_final_answer": "Yes",
+  "chosen_solution": "Okay, so the question is ...",
+  "candidate_solutions": [
+    "...",
+    "...",
+    "..."
+  ],
+  "difficulty": "5.0",
+  "topic": "Mathematics -> Applied Mathematics -> Statistics -> Mathematical Statistics",
+  "task_type": "probability",
+  "split": "train",
+  "filter_flags": [
+    "filter_variant:strict",
+    "task_mapping:v1",
+    "chosen_solution_method:boxed",
+    "is_verifiable:true"
+  ],
+  "is_verifiable": true
+}
+```
+
+这一层最重要的变化有两点：
+
+1. `question` 被统一成 `prompt`。
+2. 三份原始解答被整理成 `candidate_solutions`，再从里面选出一份 `chosen_solution`。
+
+#### 3. `RL-ready` 中间层
+
+这一层对应 `data/processed/rl_strict_train.jsonl` 这类文件，主要给 `GRPO / DAPO` 准备。它比 `SFT` 中间层更轻，只保留奖励计算真正需要的字段：
+
+| 字段 | 含义 |
+| --- | --- |
+| `sample_id` | 样本唯一标识 |
+| `prompt` | 清洗后的题目正文 |
+| `target_final_answer` | 归一化后的最终答案 |
+| `difficulty` | 难度分数 |
+| `topic` | 主题路径 |
+| `task_type` | 题型 |
+| `split` | `train / valid / test` |
+| `filter_flags` | 当前数据来源和是否有答案等标记 |
+| `is_verifiable` | 是否能做答案校验 |
+| `raw_question` | 原始题目 |
+| `raw_final_answer` | 原始最终答案 |
+
+最小样例如下：
+
+```json
+{
+  "sample_id": "000076557d50cdb31b69",
+  "prompt": "Consider the parabola given by the equation y = 4x^2 ...",
+  "target_final_answer": "y = -1",
+  "difficulty": "6.0",
+  "topic": "Mathematics -> Calculus -> Differential Calculus -> Applications of Derivatives",
+  "task_type": "calculus",
+  "split": "train",
+  "filter_flags": [
+    "rl_variant:strict",
+    "dataset_role:rl_ready",
+    "task_mapping:v1",
+    "answer_available:true"
+  ],
+  "is_verifiable": true
+}
+```
+
+这一层已经不再依赖完整推理正文，所以没有 `chosen_solution` 和 `candidate_solutions`。
+
+#### 4. 导出给 `SFT` 的最终格式
+
+`SFT` 最终文件是 `data/processed/sft_strict_main_train.json`。这一步已经转成 `ShareGPT` 风格，训练真正读取的是 `messages`：
+
+```json
+{
+  "id": "0066adc100abc32d084e",
+  "sample_id": "0066adc100abc32d084e",
+  "difficulty": "5.0",
+  "topic": "Mathematics -> Applied Mathematics -> Statistics -> Mathematical Statistics",
+  "task_type": "probability",
+  "target_final_answer": "Yes",
+  "messages": [
+    {
+      "role": "user",
+      "content": "You are solving a math problem.\n\nProblem:\n..."
+    },
+    {
+      "role": "assistant",
+      "content": "...\n\nFinal Answer: Yes"
+    }
+  ]
+}
+```
+
+这里有三个关键点：
+
+1. 用户侧 `content` 已经套上统一提示词模板。
+2. 助手侧 `content` 是清理过的推理正文加最后一行 `Final Answer: <answer>`。
+3. `data/processed/dataset_info.json` 里把它声明成 `formatting = sharegpt`、`columns.messages = messages`。
+
+#### 5. 导出给 `GRPO / DAPO` 的最终格式
+
+`GRPO` 最终文件是 `data/processed/grpo_strict_main_train.jsonl`。这一层不是 `messages`，而是单条提示词加答案标签：
+
+```json
+{
+  "sample_id": "000076557d50cdb31b69",
+  "prompt": "You are solving a math problem.\n\nProblem:\n...\n\nRequirements:\n1. Show concise step-by-step reasoning.\n2. End with exactly one final line in the format: Final Answer: <answer>\n3. Replace <answer> with only the final answer text.\n4. Do not omit the final answer line.\n",
+  "raw_prompt": "Consider the parabola given by the equation y = 4x^2 ...",
+  "target_final_answer": "y = -1",
+  "difficulty": "6.0",
+  "topic": "Mathematics -> Calculus -> Differential Calculus -> Applications of Derivatives",
+  "task_type": "calculus",
+  "split": "train"
+}
+```
+
+这一层的重点是：
+
+1. `prompt` 已经拼好完整指令模板，训练时直接送给模型。
+2. `raw_prompt` 额外保留原题，便于回看和排查。
+3. 奖励函数只依赖模型输出和 `target_final_answer` 做抽取、归一化和匹配。
+
 ### 1. `SFT` 输入输出格式
 
 `SFT` 的用户输入是统一的数学题提示词，核心要求有两条：
@@ -240,3 +423,18 @@
 从这张表和图来看，原始 `qwen base` 在当前数学题格式上几乎没有可用表现。做完 `qwen base sft` 之后，数学评测已经能明显抬起来。再往后看，`grpo sampled24k`、`dapo` 和 `grpo` 这几组都继续提升了数学能力，其中 `grpo` 在 `GSM8K`、`TheoremQA` 和 `HellaSwag acc` 上更高，`grpo sampled24k` 在 `MATH-500` 上更高。
 
 `MMLU` 这一列五个模型都落在 `0.5993 ~ 0.6030` 区间，每个分数的标准误差大约 `±0.0039`，差异都在统计噪声内，可以视为持平。这一点说明：当前的数学方向 `SFT` 和 `GRPO / DAPO` 训练在大幅提升数学能力的同时，没有让多学科知识题能力出现可见下降，和 `HellaSwag` 的结论方向一致。
+
+## Typical failure modes (format drift, reward hacking)
+
+The later-stage `dapo` and `grpo` checkpoints are much cleaner in format than the intermediate models. On the saved `GSM8K` samples, both models keep `Final Answer:` coverage at `1.0`, and there is no visible role-token leakage in the inspected outputs. The remaining failures are mostly semantic rather than formatting-related.
+
+The most common error patterns can be summarized as follows:
+
+| Failure type | Where it appears most clearly | What it looks like |
+| --- | --- | --- |
+| `semantic misread of local wording` | `GSM8K` | The model maps a phrase to the wrong operation, such as reading an alternating discount as a geometric decay |
+| `event-boundary state error` | `GSM8K` | The model loses track of what gets reset after an interruption and continues from the wrong state |
+| `overconfident heuristic shortcut` | `TheoremQA` | The model applies a familiar theorem or symmetry pattern without checking whether the preconditions actually hold |
+| `clean format, wrong content` | `dapo`, `grpo` | The answer line is well-formed, but the reasoning path is still mathematically wrong |
+
+Detailed examples are collected in `analysis/failure_cases_dapo_grpo.html`. The page now focuses on items where the early `qwen base sft` output shows visible format drift, while `dapo` or `grpo` later removes the formatting issue but still keeps a wrong answer.

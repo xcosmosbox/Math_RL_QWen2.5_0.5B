@@ -1,0 +1,479 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Residual Errors After Format Drift</title>
+  <style>
+    :root {
+      --bg: #ffffff;
+      --ink: #111111;
+      --muted: #666666;
+      --line: #e8e8e8;
+      --soft: #f7f7f7;
+      --sft: #fafafa;
+      --dapo: #f5f5f5;
+      --grpo: #f2f2f2;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--ink);
+      font-family: "Helvetica Neue", Arial, sans-serif;
+      line-height: 1.6;
+    }
+
+    main {
+      max-width: 1120px;
+      margin: 0 auto;
+      padding: 40px 24px 72px;
+    }
+
+    h1, h2, h3, h4, p {
+      margin: 0;
+    }
+
+    .hero {
+      padding-bottom: 28px;
+      border-bottom: 1px solid var(--line);
+    }
+
+    .eyebrow {
+      font-size: 12px;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--muted);
+      margin-bottom: 10px;
+    }
+
+    h1 {
+      font-size: 40px;
+      font-weight: 600;
+      letter-spacing: -0.03em;
+      margin-bottom: 14px;
+    }
+
+    .hero p {
+      max-width: 780px;
+      color: var(--muted);
+      font-size: 16px;
+    }
+
+    .summary {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 12px;
+      margin-top: 24px;
+    }
+
+    .summary-card {
+      border: 1px solid var(--line);
+      padding: 16px 18px;
+      background: #fff;
+    }
+
+    .summary-card strong {
+      display: block;
+      font-size: 26px;
+      font-weight: 600;
+      margin-bottom: 4px;
+    }
+
+    .summary-card span {
+      color: var(--muted);
+      font-size: 14px;
+    }
+
+    .section {
+      margin-top: 34px;
+    }
+
+    .section h2 {
+      font-size: 22px;
+      margin-bottom: 10px;
+    }
+
+    .section > p {
+      max-width: 780px;
+      color: var(--muted);
+      font-size: 15px;
+    }
+
+    .case {
+      margin-top: 24px;
+      padding-top: 24px;
+      border-top: 1px solid var(--line);
+    }
+
+    .case-head {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      align-items: center;
+      margin-bottom: 12px;
+    }
+
+    .tag {
+      border: 1px solid var(--line);
+      background: #fff;
+      color: var(--muted);
+      padding: 4px 8px;
+      font-size: 12px;
+    }
+
+    .case h3 {
+      font-size: 26px;
+      font-weight: 600;
+      letter-spacing: -0.02em;
+      margin-bottom: 8px;
+    }
+
+    .question {
+      font-size: 15px;
+      margin-bottom: 10px;
+    }
+
+    .gold {
+      padding: 14px 16px;
+      border: 1px solid var(--line);
+      background: var(--soft);
+      margin-bottom: 14px;
+      font-size: 14px;
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+      gap: 12px;
+    }
+
+    .panel {
+      border: 1px solid var(--line);
+      padding: 16px;
+      min-height: 220px;
+    }
+
+    .panel.sft {
+      background: var(--sft);
+    }
+
+    .panel.dapo {
+      background: var(--dapo);
+    }
+
+    .panel.grpo {
+      background: var(--grpo);
+    }
+
+    .panel h4 {
+      font-size: 14px;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: var(--muted);
+      margin-bottom: 10px;
+    }
+
+    pre {
+      margin: 0;
+      white-space: pre-wrap;
+      word-break: break-word;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      font-size: 12.5px;
+      line-height: 1.55;
+      color: #222;
+    }
+
+    .notes {
+      margin-top: 12px;
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 12px;
+    }
+
+    .note {
+      border: 1px solid var(--line);
+      padding: 14px 16px;
+      background: #fff;
+    }
+
+    .note h4 {
+      font-size: 14px;
+      margin-bottom: 6px;
+    }
+
+    .note p {
+      font-size: 14px;
+      color: var(--muted);
+    }
+
+    .footer {
+      margin-top: 36px;
+      padding-top: 18px;
+      border-top: 1px solid var(--line);
+      color: var(--muted);
+      font-size: 14px;
+    }
+
+    @media (max-width: 720px) {
+      main {
+        padding: 24px 14px 48px;
+      }
+
+      h1 {
+        font-size: 30px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <section class="hero">
+      <div class="eyebrow">Format Drift Comparison</div>
+      <h1>Items where format drift disappeared but the answer still stayed wrong</h1>
+      <p>
+        This page keeps only the cases where the early `qwen base sft` output shows obvious
+        format drift, while the later `dapo` or `grpo` output is cleanly terminated but still
+        incorrect. The point is to separate two stages of failure: first the model loses output
+        boundaries, then the boundary becomes stable, but the reasoning is still wrong.
+      </p>
+      <div class="summary">
+        <div class="summary-card">
+          <strong>4</strong>
+          <span>comparison items</span>
+        </div>
+        <div class="summary-card">
+          <strong>SFT</strong>
+          <span>visible trailing junk or repeated continuation after `Final Answer:`</span>
+        </div>
+        <div class="summary-card">
+          <strong>DAPO / GRPO</strong>
+          <span>cleaner endings, but at least one later checkpoint is still wrong</span>
+        </div>
+      </div>
+    </section>
+
+    <section class="section">
+      <h2>Selected items</h2>
+      <p>
+        The four items below cover two arithmetic word problems and two theorem-style prompts.
+        They are representative because the early stage clearly has a formatting problem, but the
+        later stage has already moved on to content errors.
+      </p>
+
+      <article class="case">
+        <div class="case-head">
+          <span class="tag">GSM8K</span>
+          <span class="tag">restart state error</span>
+        </div>
+        <h3>Case 1. Carla download restart</h3>
+        <p class="question">A 200 GB download is interrupted at 40% progress, then restarts from the beginning after a 20-minute update.</p>
+        <div class="gold"><strong>Gold answer:</strong> `160` minutes.</div>
+        <div class="grid">
+          <div class="panel sft">
+            <h4>Qwen Base SFT</h4>
+            <pre>Final Answer: 100mPid
+/mainwindow
+...
+
+Format problem:
+- corrupted suffix after the answer
+- repeated continuation after the answer line
+
+Content problem:
+- treats the restart as if only the remaining 40% must be downloaded</pre>
+          </div>
+          <div class="panel dapo">
+            <h4>DAPO</h4>
+            <pre>Final Answer: 60
+
+Clean stop, but still wrong.
+It assumes 120 GB was kept, then only 80 GB remained after restart.</pre>
+          </div>
+          <div class="panel grpo">
+            <h4>GRPO</h4>
+            <pre>Final Answer: 100
+
+Clean stop, but still wrong.
+It invents a “60% of the time” step and carries the wrong state forward.</pre>
+          </div>
+        </div>
+        <div class="notes">
+          <div class="note">
+            <h4>What changed</h4>
+            <p>The formatting issue is largely gone after RL. The answer line is short and stable.</p>
+          </div>
+          <div class="note">
+            <h4>What remained</h4>
+            <p>The reasoning still fails at the event boundary: “restart from the beginning” is not applied correctly.</p>
+          </div>
+        </div>
+      </article>
+
+      <article class="case">
+        <div class="case-head">
+          <span class="tag">GSM8K</span>
+          <span class="tag">distance bookkeeping</span>
+        </div>
+        <h3>Case 2. John drives home after traffic</h3>
+        <p class="question">John drives 180 miles away, turns around, loses 2 hours in traffic, then drives 0.5 hours at 30 mph and 1.5 hours at 80 mph.</p>
+        <div class="gold"><strong>Gold answer:</strong> `45` miles from home.</div>
+        <div class="grid">
+          <div class="panel sft">
+            <h4>Qwen Base SFT</h4>
+            <pre>Final Answer: 355&lt;LM
+...
+
+Format problem:
+- malformed final suffix
+- repeated regenerated solution after the answer line
+
+Content problem:
+- adds outbound and return distances together as if the question asked total miles traveled</pre>
+          </div>
+          <div class="panel dapo">
+            <h4>DAPO</h4>
+            <pre>Final Answer: 135
+
+The answer is cleanly formatted.
+The model still compares the return distance to the wrong reference point.</pre>
+          </div>
+          <div class="panel grpo">
+            <h4>GRPO</h4>
+            <pre>Final Answer: 160
+
+The answer is cleanly formatted.
+The 30 mph half-hour segment is dropped, so the remaining distance is miscomputed.</pre>
+          </div>
+        </div>
+        <div class="notes">
+          <div class="note">
+            <h4>What changed</h4>
+            <p>Both later checkpoints stop exactly at one final line instead of spilling into a second response.</p>
+          </div>
+          <div class="note">
+            <h4>What remained</h4>
+            <p>The core problem is now arithmetic and state bookkeeping, not formatting.</p>
+          </div>
+        </div>
+      </article>
+
+      <article class="case">
+        <div class="case-head">
+          <span class="tag">TheoremQA</span>
+          <span class="tag">counting formula</span>
+        </div>
+        <h3>Case 3. Ordered non-empty subsets</h3>
+        <p class="question">How many ways are there to divide a set of 8 elements into 5 non-empty ordered subsets?</p>
+        <div class="gold"><strong>Gold answer:</strong> `11760`.</div>
+        <div class="grid">
+          <div class="panel sft">
+            <h4>Qwen Base SFT</h4>
+            <pre>Final Answer: 4,176,000&lt;LM
+...
+
+Format problem:
+- corrupted suffix after the answer
+- repeated continuation after the answer line
+
+Content problem:
+- uses the wrong Stirling number and then multiplies again by 5!</pre>
+          </div>
+          <div class="panel dapo">
+            <h4>DAPO</h4>
+            <pre>Final Answer: 806400
+
+Formatting is clean.
+The combinatorics template is still wrong:
+it plugs in an incorrect partition count and over-multiplies.</pre>
+          </div>
+          <div class="panel grpo">
+            <h4>GRPO</h4>
+            <pre>Final Answer: 6720
+
+Formatting is clean.
+It collapses the problem into a multiset-permutation shortcut that does not match the task.</pre>
+          </div>
+        </div>
+        <div class="notes">
+          <div class="note">
+            <h4>What changed</h4>
+            <p>The later checkpoints remove the visible boundary corruption.</p>
+          </div>
+          <div class="note">
+            <h4>What remained</h4>
+            <p>Both later checkpoints still answer confidently with a wrong counting formula.</p>
+          </div>
+        </div>
+      </article>
+
+      <article class="case">
+        <div class="case-head">
+          <span class="tag">TheoremQA</span>
+          <span class="tag">subspace criterion</span>
+        </div>
+        <h3>Case 4. Nonnegative quadrant in R²</h3>
+        <p class="question">Is `W = {[x, y] in R^2: x >= 0 and y >= 0}` a subspace of `R^2`?</p>
+        <div class="gold"><strong>Gold answer:</strong> `False`.</div>
+        <div class="grid">
+          <div class="panel sft">
+            <h4>Qwen Base SFT</h4>
+            <pre>Final Answer: No&lt;LM
+...
+
+Format problem:
+- malformed answer suffix
+- repeated continuation after the answer line
+
+Content status:
+- the underlying judgment is actually correct here</pre>
+          </div>
+          <div class="panel dapo">
+            <h4>DAPO</h4>
+            <pre>Final Answer: Yes
+
+The formatting is clean, but the logic is wrong.
+It claims closure under scalar multiplication for any scalar, while implicitly assuming the scalar is nonnegative.</pre>
+          </div>
+          <div class="panel grpo">
+            <h4>GRPO</h4>
+            <pre>Final Answer: Yes
+
+The formatting is clean, but the same mathematical mistake remains:
+negative scalars are ignored.</pre>
+          </div>
+        </div>
+        <div class="notes">
+          <div class="note">
+            <h4>What changed</h4>
+            <p>The RL checkpoints fix the visual form of the answer.</p>
+          </div>
+          <div class="note">
+            <h4>What remained</h4>
+            <p>The later models are cleaner but can still flip a correct early judgment into a wrong later one.</p>
+          </div>
+        </div>
+      </article>
+    </section>
+
+    <section class="section">
+      <h2>Reading the comparison</h2>
+      <p>
+        These cases show a clear stage transition. The early model often has two problems at the
+        same time: it gives a wrong answer and also continues generating junk after `Final Answer:`.
+        The later models usually solve the output-boundary issue. However, solving that boundary
+        issue does not automatically fix semantic interpretation, combinatorics setup, or linear
+        algebra reasoning. In this sense, the later checkpoints fail more cleanly, but they still fail.
+      </p>
+    </section>
+
+    <div class="footer">
+      Source files: saved sample outputs under `eval/outputs/2026-04-14_*` and `eval/outputs/2026-04-15_*`.
+    </div>
+  </main>
+</body>
+</html>

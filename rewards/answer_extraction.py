@@ -95,11 +95,7 @@ def last_nonempty_line(text: str) -> str:
 
 def has_expected_final_answer_format(text: str) -> bool:
     last_line = last_nonempty_line(text)
-    return bool(
-        last_line.lower().startswith("final answer:")
-        or ANSWER_TAG_RE.fullmatch(last_line)
-        or "\\boxed{" in last_line
-    )
+    return bool(last_line.lower().startswith("final answer:"))
 
 
 def has_deepmath_final_answer_format(text: str) -> bool:

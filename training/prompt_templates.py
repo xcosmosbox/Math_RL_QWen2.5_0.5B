@@ -20,8 +20,8 @@ Problem:
 
 Requirements:
 1. Show concise step-by-step reasoning.
-2. End with exactly one final line in the format: <answer>\\boxed{{your_final_answer}}</answer>
-3. Put only the final answer inside the <answer> tag.
+2. End with exactly one final line in the format: Final Answer: <answer>
+3. Replace <answer> with only the final answer text.
 4. Do not omit the final answer line.
 """
 
